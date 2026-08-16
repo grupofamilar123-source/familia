@@ -1027,30 +1027,43 @@ window.guardarIdeaGenerada = async function(tema, idea){
    ========================================================================= */
 function renderDelegaciones(){
   document.getElementById('content').innerHTML = `
-  ${topbar('Delegaciones', 'Responsable asignado por tema dentro del grupo familiar',
-    isAdmin()? '<button class="btn secondary" onclick="abrirFormDelegacion()">+ Asignar manual</button> <button class="btn gold" onclick="asignarAlAzar()">🎲 Asignar al azar</button>':'')}
-  <div class="card"><table><tr><th>Tema</th><th>Miembro delegado</th><th>Fecha de asignación</th>${isAdmin()?'<th></th>':''}</tr>
-  ${TEMAS_DELEGACION.map(tema=>{
-    const d = DATA.delegaciones.find(x=>x.tema===tema);
-    const m = d? DATA.miembros.find(x=>x.id===d.miembroId) : null;
-    return `<tr><td><b>${tema}</b></td><td>${m? m.nombre : '<span class="muted">Sin asignar</span>'}</td><td>${d? (d.fecha||'—') : '—'}</td>
-      ${isAdmin()?`<td><button class="btn small secondary" onclick="abrirFormDelegacion('${tema}')">${d?'Reasignar':'Asignar'}</button> ${d?`<button class="btn small danger" onclick="eliminarDelegacion('${d.id}')">Quitar</button>`:''}</td>`:''}</tr>`;
-  }).join('')}
-  </table></div>`;
+  ${topbar('Delegaciones', 'Responsables asignados por tema dentro del grupo familiar (pueden ser varios miembros por tema)',
+    isAdmin()? '<button class="btn secondary" onclick="abrirFormDelegacion()">+ Agregar delegado</button> <button class="btn gold" onclick="asignarAlAzar()">🎲 Asignar al azar</button>':'')}
+  <div id="delegacionesContainer"></div>`;
+  document.getElementById('delegacionesContainer').innerHTML = TEMAS_DELEGACION.map(tema=>{
+    const asignaciones = DATA.delegaciones.filter(x=>x.tema===tema);
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3>${tema}</h3>
+        ${isAdmin()?`<button class="btn small secondary no-print" onclick="abrirFormDelegacion('${tema}')">+ Agregar</button>`:''}
+      </div>
+      ${asignaciones.length? `<div class="tag-row">${asignaciones.map(d=>{
+        const m = DATA.miembros.find(x=>x.id===d.miembroId);
+        return `<span class="pill">${m? m.nombre : '—'} ${d.fecha? '· '+d.fecha:''} ${isAdmin()?`<a href="#" onclick="eliminarDelegacion('${d.id}');return false;" style="color:var(--danger);margin-left:6px">✕</a>`:''}</span>`;
+      }).join('')}</div>` : '<p class="muted">Sin responsables asignados.</p>'}
+    </div>`;
+  }).join('');
 }
 window.abrirFormDelegacion = function(temaPreseleccionado){
   if(!requireAdmin()) return;
-  openModal(temaPreseleccionado?'Asignar delegación: '+temaPreseleccionado:'Nueva delegación', `
+  openModal(temaPreseleccionado?'Agregar delegado: '+temaPreseleccionado:'Nueva delegación', `
     <label>Tema</label><select name="tema" ${temaPreseleccionado?'disabled':''}>${opciones(TEMAS_DELEGACION, temaPreseleccionado)}</select>
     ${temaPreseleccionado?`<input type="hidden" name="temaFijo" value="${temaPreseleccionado}">`:''}
-    <label>Miembro responsable</label><select name="miembroId">${DATA.miembros.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}</select>
+    <label>Miembro(s) responsable(s)</label>
+    <select name="miembroIds" multiple size="${Math.min(DATA.miembros.length||1,6)}">${DATA.miembros.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}</select>
+    <p class="muted" style="font-size:11.5px">Mantén presionado Ctrl (o Cmd en Mac) para seleccionar varios miembros a la vez.</p>
     <label>Fecha</label><input type="date" name="fecha" value="${new Date().toISOString().slice(0,10)}">`,
     async (fd)=>{
       const tema = fd.get('temaFijo') || fd.get('tema');
-      const existente = DATA.delegaciones.find(x=>x.tema===tema);
-      const item = {id: existente?existente.id:undefined, tema, miembroId:fd.get('miembroId'), fecha:fd.get('fecha')};
-      const newId = await guardarDoc('delegaciones', item);
-      if(existente){ Object.assign(existente, item); } else { item.id=newId; DATA.delegaciones.push(item); }
+      const fecha = fd.get('fecha');
+      const seleccionados = Array.from(document.querySelector('select[name=miembroIds]').selectedOptions).map(o=>o.value);
+      for(const miembroId of seleccionados){
+        const yaExiste = DATA.delegaciones.some(x=>x.tema===tema && x.miembroId===miembroId);
+        if(yaExiste) continue;
+        const item = {tema, miembroId, fecha};
+        item.id = await guardarDoc('delegaciones', item);
+        DATA.delegaciones.push(item);
+      }
       render('delegaciones');
     });
 };
@@ -1058,14 +1071,17 @@ window.eliminarDelegacion = async function(id){ if(!requireAdmin())return; await
 window.asignarAlAzar = async function(){
   if(!requireAdmin()) return;
   if(!DATA.miembros.length){ alert('Registra primero miembros en Grupo familiar.'); return; }
-  if(!confirm('¿Asignar al azar un responsable para cada tema? Esto reemplazará las delegaciones actuales.')) return;
+  if(!confirm('¿Asignar al azar un responsable adicional para cada tema? Esto se suma a los que ya existen (no los reemplaza).')) return;
   const hoy = new Date().toISOString().slice(0,10);
   for(const tema of TEMAS_DELEGACION){
-    const miembro = DATA.miembros[Math.floor(Math.random()*DATA.miembros.length)];
-    const existente = DATA.delegaciones.find(x=>x.tema===tema);
-    const item = {id: existente?existente.id:undefined, tema, miembroId:miembro.id, fecha:hoy};
-    const newId = await guardarDoc('delegaciones', item);
-    if(existente){ Object.assign(existente, item); } else { item.id=newId; DATA.delegaciones.push(item); }
+    const yaAsignados = DATA.delegaciones.filter(x=>x.tema===tema).map(x=>x.miembroId);
+    const disponibles = DATA.miembros.filter(m=>!yaAsignados.includes(m.id));
+    const pool = disponibles.length? disponibles : DATA.miembros;
+    const miembro = pool[Math.floor(Math.random()*pool.length)];
+    if(yaAsignados.includes(miembro.id)) continue;
+    const item = {tema, miembroId:miembro.id, fecha:hoy};
+    item.id = await guardarDoc('delegaciones', item);
+    DATA.delegaciones.push(item);
   }
   render('delegaciones');
 };
