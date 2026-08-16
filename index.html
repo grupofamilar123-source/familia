@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Familia — Plan Familiar Integral</title>
+<style>
+:root{
+  --navy:#1b2a4a; --navy-dark:#131f38; --teal:#0e8f8f; --teal-light:#e6f6f6;
+  --gold:#c99a3b; --bg:#f4f6f9; --card:#ffffff; --text:#1e2430; --muted:#6b7280;
+  --danger:#c0392b; --ok:#1e8f5a; --border:#e3e7ee; --radius:14px;
+  --shadow:0 2px 10px rgba(20,30,60,.06), 0 1px 2px rgba(20,30,60,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);}
+h1,h2,h3,h4{font-family:Georgia,'Times New Roman',serif;color:var(--navy);margin:0 0 8px}
+a{color:var(--teal)}
+button{cursor:pointer;font-family:inherit}
+input,select,textarea{font-family:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--border);border-radius:8px;width:100%;background:#fff}
+label{font-size:12.5px;color:var(--muted);font-weight:600;display:block;margin:10px 0 4px}
+.btn{background:var(--teal);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-weight:600;font-size:14px}
+.btn:hover{opacity:.9}
+.btn.secondary{background:#fff;color:var(--navy);border:1px solid var(--border)}
+.btn.danger{background:var(--danger)}
+.btn.gold{background:var(--gold)}
+.btn.small{padding:5px 10px;font-size:12.5px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:16px;border:1px solid var(--border)}
+.grid{display:grid;gap:16px}
+.grid.cols-2{grid-template-columns:1fr 1fr}
+.grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+.grid.cols-4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:900px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr}}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;background:var(--teal-light);color:var(--teal)}
+.pill.gold{background:#fbf1de;color:#9a721f}
+.pill.danger{background:#fbeaea;color:var(--danger)}
+.muted{color:var(--muted);font-size:13px}
+.hidden{display:none !important}
+/* ---- Login ---- */
+#loginScreen{position:fixed;inset:0;display:flex;background:var(--navy-dark);z-index:999}
+.carousel{flex:1.3;position:relative;overflow:hidden;display:flex;align-items:flex-end}
+.carousel .slide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.5s ease}
+.carousel .slide.active{opacity:1}
+.carousel::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(19,31,56,.1),rgba(19,31,56,.85))}
+.carousel .quote{position:relative;z-index:2;color:#fff;padding:50px;max-width:640px}
+.carousel .quote h2{color:#fff;font-size:26px;line-height:1.4}
+.loginBox{flex:1;background:#fff;display:flex;align-items:center;justify-content:center;padding:40px}
+.loginForm{width:100%;max-width:360px}
+.loginForm h1{font-size:26px}
+/* ---- App shell ---- */
+#appShell{display:flex;min-height:100vh}
+nav#sidebar{width:230px;background:var(--navy-dark);color:#fff;flex-shrink:0;position:fixed;top:0;bottom:0;overflow-y:auto}
+nav#sidebar .brand{padding:22px 18px;font-family:Georgia,serif;font-size:19px;border-bottom:1px solid rgba(255,255,255,.1)}
+nav#sidebar .navitem{display:flex;align-items:center;gap:10px;padding:12px 18px;color:rgba(255,255,255,.75);font-size:14px;cursor:pointer;border-left:3px solid transparent}
+nav#sidebar .navitem:hover{background:rgba(255,255,255,.06);color:#fff}
+nav#sidebar .navitem.active{background:rgba(14,143,143,.18);color:#fff;border-left-color:var(--teal)}
+nav#sidebar .userbox{padding:14px 18px;border-top:1px solid rgba(255,255,255,.1);font-size:12.5px;color:rgba(255,255,255,.6)}
+main#content{margin-left:230px;flex:1;padding:26px 32px;max-width:1200px}
+header.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;color:var(--muted);font-size:11.5px;text-transform:uppercase;padding:8px;border-bottom:2px solid var(--border)}
+td{padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.progress-bar{background:#eef0f4;border-radius:8px;height:10px;overflow:hidden}
+.progress-fill{height:100%;background:var(--teal)}
+.modal-bg{position:fixed;inset:0;background:rgba(15,20,35,.5);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px}
+.modal{background:#fff;border-radius:var(--radius);padding:24px;max-width:560px;width:100%;max-height:88vh;overflow-y:auto}
+.close-x{float:right;cursor:pointer;color:var(--muted);font-size:20px}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.verse-box{background:linear-gradient(135deg,var(--navy),var(--navy-dark));color:#fff;border-radius:var(--radius);padding:24px;margin-bottom:16px}
+.verse-box .ref{color:var(--gold);font-weight:700;font-size:12.5px;letter-spacing:.5px;text-transform:uppercase;margin-top:8px;display:block}
+.print-only{display:none}
+@media print{
+  nav#sidebar,.no-print,header.topbar .toolbar{display:none !important}
+  main#content{margin-left:0}
+  body{background:#fff}
+  .print-only{display:block}
+}
+::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:#c9cfda;border-radius:8px}
+.checklist-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+.avatar-init{width:38px;height:38px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen">
+  <div class="carousel" id="carousel">
+    <div class="slide active" style="background-image:url('https://source.unsplash.com/1600x1200/?family,ecuador')"></div>
+    <div class="slide" style="background-image:url('https://source.unsplash.com/1600x1200/?quito,mountains')"></div>
+    <div class="slide" style="background-image:url('https://source.unsplash.com/1600x1200/?home,security')"></div>
+    <div class="slide" style="background-image:url('https://source.unsplash.com/1600x1200/?family,togetherness')"></div>
+    <div class="quote">
+      <span class="pill gold">Plan Familiar Integral</span>
+      <h2 id="loginVerse">"Mas si alguno no tiene cuidado de los suyos, y mayormente de los de su casa, ha negado la fe."</h2>
+      <p class="muted" style="color:rgba(255,255,255,.7)">1 Timoteo 5:8</p>
+    </div>
+  </div>
+  <div class="loginBox">
+    <form class="loginForm" id="loginForm">
+      <h1>Bienvenido</h1>
+      <p class="muted">Ingresa con tu cuenta familiar</p>
+      <label>Correo electrónico</label>
+      <input type="email" id="loginEmail" required placeholder="nombre@familia.com">
+      <label>Contraseña</label>
+      <input type="password" id="loginPassword" required placeholder="••••••••">
+      <p id="loginError" class="muted" style="color:var(--danger)"></p>
+      <button type="submit" class="btn" style="width:100%;margin-top:14px;padding:12px">Ingresar</button>
+      <p class="muted" style="margin-top:16px;font-size:12px">El acceso lo configura el administrador del grupo familiar. Si no tienes credenciales, solicítalas a tu administrador.</p>
+    </form>
+  </div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div id="appShell" class="hidden">
+  <nav id="sidebar">
+    <div class="brand">🏠 Familia</div>
+    <div class="navitem" data-view="dashboard">📊 Dashboard</div>
+    <div class="navitem" data-view="grupo">👪 Grupo familiar</div>
+    <div class="navitem" data-view="seguridad">🛡️ Seguridad</div>
+    <div class="navitem" data-view="fondos">💰 Fondos de contingencia</div>
+    <div class="navitem" data-view="seguros">📄 Seguros</div>
+    <div class="navitem" data-view="telefonos">📞 Teléfonos de contacto</div>
+    <div class="navitem" data-view="cumpleanos">🎂 Cumpleaños</div>
+    <div class="navitem" data-view="estructuras">🏗️ Estructuras</div>
+    <div class="navitem" data-view="diversion">🎉 Diversión</div>
+    <div class="navitem" data-view="planificacion">🗓️ Planificación</div>
+    <div class="navitem" data-view="salud">🩺 Salud</div>
+    <div class="navitem" data-view="ideas">💡 Ideas</div>
+    <div class="userbox">
+      <div id="userboxName">—</div>
+      <div id="userboxRole" class="pill" style="margin-top:6px"></div>
+      <div style="margin-top:10px"><a href="#" id="logoutBtn" style="color:rgba(255,255,255,.7);font-size:12.5px">Cerrar sesión</a></div>
+    </div>
+  </nav>
+  <main id="content"></main>
+</div>
+
+<!-- Modal container -->
+<div id="modalRoot"></div>
+
+<!-- ============ FIREBASE ============ -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+// ============================================================
+// CONFIGURACIÓN FIREBASE — reemplaza con los datos de tu proyecto
+// ============================================================
+const firebaseConfig = {
+  apiKey: "TU_API_KEY",
+  authDomain: "TU_PROYECTO.firebaseapp.com",
+  projectId: "TU_PROYECTO",
+  storageBucket: "TU_PROYECTO.appspot.com",
+  messagingSenderId: "TU_SENDER_ID",
+  appId: "TU_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+</script>
+<script>
+// Carrusel de imágenes del login
+(function(){
+  const slides = document.querySelectorAll('#carousel .slide');
+  let idx = 0;
+  setInterval(()=>{
+    slides[idx].classList.remove('active');
+    idx = (idx+1) % slides.length;
+    slides[idx].classList.add('active');
+  }, 5000);
+})();
+</script>
+<script src="app.js"></script>
+</body>
+</html>
