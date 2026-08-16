@@ -208,6 +208,7 @@ auth.onAuthStateChanged(async (user)=>{
     document.getElementById('userboxName').textContent = CURRENT_USER.nombre;
     document.getElementById('userboxRole').textContent = CURRENT_USER.rol==='admin'?'Administrador':'Miembro';
     document.getElementById('userboxRole').className = 'pill '+(CURRENT_USER.rol==='admin'?'gold':'');
+    document.querySelectorAll('.admin-only').forEach(el=> el.classList.toggle('hidden', CURRENT_USER.rol!=='admin'));
     await cargarTodo();
     render('dashboard');
   } else {
@@ -267,7 +268,8 @@ function render(view){
   const renderers = {
     dashboard: renderDashboard, grupo: renderGrupo, seguridad: renderSeguridad, fondos: renderFondos,
     seguros: renderSeguros, telefonos: renderTelefonos, cumpleanos: renderCumpleanos, estructuras: renderEstructuras,
-    diversion: renderDiversion, planificacion: renderPlanificacion, salud: renderSalud, ideas: renderIdeas
+    diversion: renderDiversion, planificacion: renderPlanificacion, salud: renderSalud, ideas: renderIdeas,
+    accesos: renderAccesos
   };
   (renderers[view]||renderDashboard)();
 }
@@ -943,3 +945,48 @@ window.guardarIdeaGenerada = async function(tema, idea){
   alert('Idea guardada en el listado.');
   render('ideas');
 };
+
+/* =========================================================================
+   13) GESTIÓN DE ACCESOS (solo admin) — crea usuario+contraseña y su perfil en Firestore automáticamente
+   ========================================================================= */
+let LISTA_ACCESOS = [];
+async function cargarAccesos(){
+  const snap = await db.collection('usuarios').get();
+  LISTA_ACCESOS = snap.docs.map(d=>({uid:d.id, ...d.data()}));
+}
+async function renderAccesos(){
+  if(!isAdmin()){ render('dashboard'); return; }
+  document.getElementById('content').innerHTML = `
+  ${topbar('Gestión de accesos', 'Crea el usuario y contraseña de cada miembro; su perfil se registra automáticamente', '<button class="btn" onclick="abrirFormAcceso()">+ Nuevo acceso</button>')}
+  <div class="card" id="accesosContainer"><p class="muted">Cargando...</p></div>`;
+  await cargarAccesos();
+  document.getElementById('accesosContainer').innerHTML = `
+  <table><tr><th>Correo</th><th>Nombre</th><th>Rol</th><th>Miembro vinculado</th></tr>
+  ${LISTA_ACCESOS.map(a=>`<tr><td>${a.email||'—'}</td><td>${a.nombre||'—'}</td><td><span class="pill ${a.rol==='admin'?'gold':''}">${a.rol==='admin'?'Administrador':'Miembro'}</span></td><td>${(DATA.miembros.find(m=>m.id===a.miembroId)||{}).nombre||'—'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Sin accesos creados aún.</td></tr>'}
+  </table>
+  <p class="muted" style="margin-top:14px">Nota: por seguridad de Firebase, esta lista se arma a partir de los perfiles guardados en Firestore (no lista directamente Authentication). Los accesos que crees aquí sí quedan completos en ambos lugares.</p>`;
+}
+window.abrirFormAcceso = function(){
+  if(!requireAdmin()) return;
+  openModal('Nuevo acceso de miembro', `
+    <label>Correo electrónico</label><input type="email" name="email" required placeholder="nombre@familia.com">
+    <label>Contraseña (mínimo 6 caracteres)</label><input type="text" name="password" required minlength="6" placeholder="Contraseña temporal">
+    <label>Nombre para mostrar</label><input name="nombre" required>
+    <label>Rol</label><select name="rol">${opciones(['miembro','admin'])}</select>
+    <label>Vincular a ficha de miembro (opcional)</label><select name="miembroId"><option value="">— ninguna —</option>${DATA.miembros.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}</select>
+    <p class="muted" id="accesoError" style="color:var(--danger)"></p>`,
+    async (fd)=>{
+      const email=fd.get('email'), password=fd.get('password'), nombre=fd.get('nombre'), rol=fd.get('rol'), miembroId=fd.get('miembroId');
+      try{
+        const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+        const newUid = cred.user.uid;
+        await secondaryAuth.signOut();
+        await db.collection('usuarios').doc(newUid).set({email, nombre, rol, miembroId: miembroId||null});
+        alert('Acceso creado correctamente para '+email);
+        render('accesos');
+      }catch(err){
+        alert('No se pudo crear el acceso: '+ (err.message||err));
+      }
+    });
+};
+
