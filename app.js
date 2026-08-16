@@ -221,7 +221,7 @@ function initials(name){ return (name||'?').split(' ').filter(Boolean).slice(0,2
 let CURRENT_USER = null;   // {uid, email, rol, miembroId}
 let DATA = { miembros:[], familias:[], planes:[], equipoRevisiones:[], fondos:{aportes:[],gastos:[],convenios:[],banco:'',cuotaMensual:null,fechaAcuerdo:'',cumplimientos:{}},
              seguros:[], telefonos:[], estructuras:[], diversionPropuestas:[], diversionRespuestas:[], salud:[], ideas:[], delegaciones:[],
-             seguridadItems:[], seguridadCumplimiento:[], saludCitasManual:[], saludCumplimiento:[], reuniones:[], compromisos:[] };
+             seguridadItems:[], seguridadCumplimiento:[], saludCitasManual:[], saludCumplimiento:[], reuniones:[], compromisos:[], planificaciones:[] };
 let CURRENT_VIEW = 'dashboard';
 const isAdmin = ()=> CURRENT_USER && CURRENT_USER.rol==='admin';
 
@@ -271,8 +271,8 @@ async function colToArray(name){
 }
 async function cargarTodo(){
   try{
-    const [miembros, familias, planes, equipoRevisiones, seguros, telefonos, estructuras, diversionPropuestas, diversionRespuestas, salud, ideas, delegaciones, seguridadItems, seguridadCumplimiento, saludCitasManual, saludCumplimiento, reuniones, compromisos] =
-      await Promise.all(['miembros','familias','planesSeguridad','revisionesSeguridad','seguros','telefonos','estructuras','diversionPropuestas','diversionRespuestas','salud','ideas','delegaciones','seguridadItems','seguridadCumplimiento','saludCitasManual','saludCumplimiento','reuniones','compromisos'].map(colToArray));
+    const [miembros, familias, planes, equipoRevisiones, seguros, telefonos, estructuras, diversionPropuestas, diversionRespuestas, salud, ideas, delegaciones, seguridadItems, seguridadCumplimiento, saludCitasManual, saludCumplimiento, reuniones, compromisos, planificaciones] =
+      await Promise.all(['miembros','familias','planesSeguridad','revisionesSeguridad','seguros','telefonos','estructuras','diversionPropuestas','diversionRespuestas','salud','ideas','delegaciones','seguridadItems','seguridadCumplimiento','saludCitasManual','saludCumplimiento','reuniones','compromisos','planificaciones'].map(colToArray));
     DATA.miembros=miembros; DATA.familias=familias;
     DATA.planes = planes.length? planes : PLANES_SEED.map(p=>({id:uid(),...p}));
     DATA.equipoRevisiones=equipoRevisiones;
@@ -283,6 +283,7 @@ async function cargarTodo(){
     DATA.seguridadCumplimiento = seguridadCumplimiento;
     DATA.saludCitasManual = saludCitasManual; DATA.saludCumplimiento = saludCumplimiento;
     DATA.reuniones = reuniones; DATA.compromisos = compromisos;
+    DATA.planificaciones = planificaciones;
     const fondosDoc = await db.collection('fondos').doc('main').get();
     DATA.fondos = fondosDoc.exists? fondosDoc.data() : {aportes:[],gastos:[],convenios:[],banco:'',cuotaMensual:null,fechaAcuerdo:'',cumplimientos:{}};
     if(!DATA.fondos.cumplimientos) DATA.fondos.cumplimientos={};
@@ -324,13 +325,63 @@ function render(view){
 }
 
 function topbar(titulo, subtitulo, extraBtnsHtml){
+  const tituloSafe = String(titulo).replace(/'/g,"");
   return `<header class="topbar">
     <div><h1>${titulo}</h1><p class="muted">${subtitulo||''}</p></div>
     <div class="toolbar no-print">${extraBtnsHtml||''}
-      <button class="btn secondary" onclick="window.print()">🖨️ Imprimir / Exportar</button>
+      <button class="btn secondary" onclick="window.print()">🖨️ PDF</button>
+      <button class="btn secondary" onclick="descargarWord('${tituloSafe}')">📝 Word</button>
+      <button class="btn secondary" onclick="descargarExcel('${tituloSafe}')">📊 Excel</button>
     </div>
   </header>`;
 }
+function prepararContenidoExport(){
+  const clone = document.getElementById('content').cloneNode(true);
+  clone.querySelectorAll('.no-print').forEach(el=>el.remove());
+  clone.querySelectorAll('button').forEach(el=>el.remove());
+  clone.querySelectorAll('a').forEach(el=>{ el.removeAttribute('onclick'); el.removeAttribute('href'); });
+  clone.querySelectorAll('.semaforo').forEach(el=>{ const txt=el.getAttribute('title')||''; const span=document.createElement('span'); span.textContent=txt; el.replaceWith(span); });
+  clone.querySelectorAll('select').forEach(el=>{ const opt=el.options[el.selectedIndex]; const span=document.createElement('span'); span.textContent=opt?opt.textContent:''; el.replaceWith(span); });
+  clone.querySelectorAll('header.topbar').forEach(el=>el.remove());
+  return clone;
+}
+window.descargarWord = function(titulo){
+  const clone = prepararContenidoExport();
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+  <head><meta charset='utf-8'><title>${titulo}</title>
+  <style>
+    body{font-family:Calibri,Arial,sans-serif;font-size:11.5pt;color:#1e2430}
+    h1{font-size:20pt;color:#1b2a4a;font-family:Georgia,serif} h2{font-size:16pt;color:#1b2a4a} h3{font-size:14pt;color:#1b2a4a;font-family:Georgia,serif} h4{font-size:12pt;color:#1b2a4a}
+    table{border-collapse:collapse;width:100%;margin-bottom:16px} th,td{border:1px solid #ccc;padding:6px;font-size:10.5pt;text-align:left}
+    th{background:#eef1f6}
+    .card{margin-bottom:18px;padding-bottom:8px}
+    .muted{color:#6b7280}
+    .pill{background:#e6f6f6;color:#0e8f8f;padding:2px 8px;border-radius:10px;font-size:9pt;font-weight:bold}
+  </style></head><body>
+  <h1>Plan Familiar Integral — ${titulo}</h1>
+  <p class="muted">Informe ejecutivo generado el ${new Date().toLocaleDateString('es-EC',{day:'2-digit',month:'long',year:'numeric'})}</p>
+  <hr>
+  ${clone.innerHTML}
+  </body></html>`;
+  const blob = new Blob(['\ufeff', html], {type:'application/msword'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = titulo.replace(/[^a-z0-9]+/gi,'_')+'.doc';
+  document.body.appendChild(link); link.click(); link.remove();
+};
+window.descargarExcel = function(titulo){
+  const clone = prepararContenidoExport();
+  const tablas = clone.querySelectorAll('table');
+  if(!tablas.length){ alert('Esta sección no tiene tablas de datos para exportar a Excel.'); return; }
+  const wb = XLSX.utils.book_new();
+  tablas.forEach((t,i)=>{
+    try{
+      const ws = XLSX.utils.table_to_sheet(t);
+      XLSX.utils.book_append_sheet(wb, ws, ('Tabla'+(i+1)).slice(0,31));
+    }catch(e){ console.warn('No se pudo exportar una tabla', e); }
+  });
+  XLSX.writeFile(wb, titulo.replace(/[^a-z0-9]+/gi,'_')+'.xlsx');
+};
 function nombreFamilia(familiaId){ const f=DATA.familias.find(x=>x.id===familiaId); return f? f.nombre : '(sin grupo)'; }
 
 // ============================================================
@@ -1022,7 +1073,7 @@ window.confirmarPaseo = async function(id){
    ========================================================================= */
 function renderPlanificacion(){
   document.getElementById('content').innerHTML = `
-  ${topbar('Planificación', 'Informe ejecutivo consolidado del plan familiar')}
+  ${topbar('Planificación', 'Informe ejecutivo consolidado y planificación de eventos, reuniones, mantenimientos, etc.', isAdmin()?'<button class="btn" onclick="abrirFormPlanificacion()">+ Nueva planificación</button>':'')}
   <div class="card">
     <h3>Resumen ejecutivo</h3>
     <table>
@@ -1034,11 +1085,174 @@ function renderPlanificacion(){
       <tr><td>Saldo del fondo de contingencia</td><td><b>${money(calcularSaldoFondos())}</b></td></tr>
       <tr><td>Propuestas de diversión activas</td><td><b>${DATA.diversionPropuestas.length}</b></td></tr>
       <tr><td>Ideas registradas</td><td><b>${DATA.ideas.length}</b></td></tr>
+      <tr><td>Planificaciones activas</td><td><b>${DATA.planificaciones.filter(p=>p.estado!=='finalizado').length}</b></td></tr>
     </table>
-    <p class="muted" style="margin-top:12px">Usa "Imprimir / Exportar" en cada área (Grupo familiar, Seguridad, Fondos, Seguros, Estructuras, Salud, etc.) para generar el informe ejecutivo específico de esa sección en PDF.</p>
-    <button class="btn no-print" onclick="window.print()">🖨️ Imprimir este resumen</button>
+  </div>
+  <div id="planificacionesContainer"></div>`;
+  document.getElementById('planificacionesContainer').innerHTML = [...DATA.planificaciones].sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')).map(p=>renderPlanificacionCard(p)).join('') || '<p class="muted">Sin planificaciones registradas aún.</p>';
+}
+const ESTADO_PLAN_TXT = {pendiente:'Pendiente', en_curso:'En curso', finalizado:'Finalizado'};
+const ESTADO_PLAN_CLS = {pendiente:'gold', en_curso:'', finalizado:'verde'};
+function renderPlanificacionCard(p){
+  const asistentes = p.asistentes||{};
+  const gastos = p.gastos||[]; const ingresos = p.ingresos||[];
+  const totalGastos = gastos.reduce((s,g)=>s+(parseFloat(g.monto)||0),0);
+  const totalIngresos = ingresos.reduce((s,i)=>s+(parseFloat(i.monto)||0),0);
+  const presupuesto = parseFloat(p.presupuesto)||0;
+  const saldo = presupuesto + totalIngresos - totalGastos;
+  const estado = p.estado||'pendiente';
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>🗓️ ${p.titulo} <span class="pill" style="margin-left:6px">${p.tipo}</span> <span class="pill ${ESTADO_PLAN_CLS[estado]}">${ESTADO_PLAN_TXT[estado]}</span></h3>
+      <div class="no-print">${isAdmin()?`<button class="btn small secondary" onclick="abrirFormPlanificacion('${p.id}')">Editar</button> <button class="btn small danger" onclick="eliminarPlanificacion('${p.id}')">Eliminar</button>`:''}</div>
+    </div>
+    <p class="muted">${p.fecha? fmtFecha(p.fecha)+' de '+new Date(p.fecha+'T00:00:00').getFullYear() : '—'}</p>
+    ${p.descripcion? `<p>${p.descripcion}</p>`:''}
+
+    ${estado==='pendiente'? `<div class="card" style="background:#fff8ec;margin-bottom:12px">
+      <p><b>Motivo por el que quedó pendiente:</b> ${p.motivoPendiente||'—'}</p>
+      <p><b>Fecha estimada de término:</b> ${p.fechaEstimadaTermino? fmtFecha(p.fechaEstimadaTermino)+' de '+new Date(p.fechaEstimadaTermino+'T00:00:00').getFullYear() : '—'}</p>
+      <p><b>Se compromete a culminar:</b> ${(DATA.miembros.find(m=>m.id===p.responsableTerminoId)||{}).nombre||'—'} ${p.fechaCompromisoTermino? '· fecha de compromiso: '+fmtFecha(p.fechaCompromisoTermino)+' de '+new Date(p.fechaCompromisoTermino+'T00:00:00').getFullYear() : ''}</p>
+    </div>` : ''}
+
+    <h4 style="font-size:14px">👥 Checklist — ¿quién asistirá a realizar esta planificación?</h4>
+    <table><tr><th>Miembro</th><th style="width:100px">Asistirá</th></tr>
+    ${DATA.miembros.map(m=>{
+      const va = !!asistentes[m.id];
+      return `<tr><td>${m.nombre}</td><td style="text-align:center"><span class="semaforo ${va?'verde':'gris'}" title="${va?'Asistirá':'Sin confirmar'}" ${isAdmin()?`onclick="toggleAsistentePlanificacion('${p.id}','${m.id}')"`:''}></span></td></tr>`;
+    }).join('') || `<tr><td colspan="2" class="muted">Registra miembros primero.</td></tr>`}
+    </table>
+
+    <h4 style="margin-top:12px;font-size:14px">💰 Presupuesto (independiente del fondo de contingencia)</h4>
+    <div class="grid cols-3">
+      <div class="card" style="margin-bottom:0"><div class="muted">Presupuesto asignado</div><h3>${money(presupuesto)}</h3></div>
+      <div class="card" style="margin-bottom:0"><div class="muted">Ingresos + gastos</div><h3>${money(totalIngresos)} / ${money(totalGastos)}</h3></div>
+      <div class="card" style="margin-bottom:0"><div class="muted">Saldo</div><h3>${money(saldo)}</h3></div>
+    </div>
+    <div class="grid cols-2" style="margin-top:10px">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center"><b>Gastos</b>${isAdmin()?`<button class="btn small secondary no-print" onclick="abrirFormGastoPlanificacion('${p.id}')">+ Gasto</button>`:''}</div>
+        <table><tr><th>Concepto</th><th>Monto</th><th>Fecha</th>${isAdmin()?'<th></th>':''}</tr>
+        ${gastos.map((g,i)=>`<tr><td>${g.concepto}</td><td>${money(g.monto)}</td><td>${g.fecha||'—'}</td>${isAdmin()?`<td><button class="btn small danger" onclick="eliminarGastoPlanificacion('${p.id}',${i})">✕</button></td>`:''}</tr>`).join('')||'<tr><td colspan="4" class="muted">Sin gastos.</td></tr>'}
+        </table>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center"><b>Ingresos</b>${isAdmin()?`<button class="btn small secondary no-print" onclick="abrirFormIngresoPlanificacion('${p.id}')">+ Ingreso</button>`:''}</div>
+        <table><tr><th>Concepto</th><th>Monto</th><th>Fecha</th>${isAdmin()?'<th></th>':''}</tr>
+        ${ingresos.map((g,i)=>`<tr><td>${g.concepto}</td><td>${money(g.monto)}</td><td>${g.fecha||'—'}</td>${isAdmin()?`<td><button class="btn small danger" onclick="eliminarIngresoPlanificacion('${p.id}',${i})">✕</button></td>`:''}</tr>`).join('')||'<tr><td colspan="4" class="muted">Sin ingresos.</td></tr>'}
+        </table>
+      </div>
+    </div>
+    <h4 style="margin-top:12px;font-size:14px">🎒 Adicionales — ¿quién llevará qué? (alimentos, bebidas, dulces, etc.)</h4>
+    <table><tr><th>Miembro</th><th>Qué llevará</th><th>Cantidad / detalle</th>${isAdmin()?'<th></th>':''}</tr>
+    ${(p.adicionales||[]).map((a,i)=>{
+      const m = DATA.miembros.find(x=>x.id===a.miembroId);
+      return `<tr><td>${m?m.nombre:'—'}</td><td>${a.item}</td><td>${a.detalle||'—'}</td>${isAdmin()?`<td><button class="btn small danger" onclick="eliminarAdicionalPlanificacion('${p.id}',${i})">✕</button></td>`:''}</tr>`;
+    }).join('') || `<tr><td colspan="4" class="muted">Sin adicionales registrados.</td></tr>`}
+    </table>
+    <div class="no-print" style="margin-top:6px"><button class="btn small secondary" onclick="abrirFormAdicional('${p.id}')">+ Agregar adicional</button></div>
+
+    ${isAdmin()?`<div class="no-print" style="margin-top:10px"><button class="btn small ${estado==='finalizado'?'secondary':'gold'}" onclick="cambiarEstadoPlanificacion('${p.id}')">${estado==='finalizado'?'Reabrir planificación':'Marcar como finalizado / actualizar estado'}</button></div>`:''}
   </div>`;
 }
+window.abrirFormPlanificacion = function(id){
+  if(id && !requireAdmin()) return;
+  const p = id? DATA.planificaciones.find(x=>x.id===id) : {asistentes:{}, gastos:[], ingresos:[], adicionales:[], estado:'pendiente'};
+  openModal(id?'Editar planificación':'Nueva planificación', `
+    <label>Título</label><input name="titulo" required placeholder="Ej: Mantenimiento del vehículo, Reunión trimestral..." value="${p.titulo||''}">
+    <label>Tipo</label><select name="tipo">${opciones(['Evento','Reunión','Mantenimiento','Otro'], p.tipo)}</select>
+    <label>Fecha</label><input type="date" name="fecha" value="${p.fecha||new Date().toISOString().slice(0,10)}">
+    <label>Descripción</label><textarea name="descripcion" rows="2">${p.descripcion||''}</textarea>
+    <label>Presupuesto que se necesitará</label><input type="number" step="0.01" name="presupuesto" value="${p.presupuesto||''}">`,
+    async (fd)=>{
+      const item = {id, titulo:fd.get('titulo'), tipo:fd.get('tipo'), fecha:fd.get('fecha'), descripcion:fd.get('descripcion'), presupuesto:fd.get('presupuesto'),
+        asistentes:p.asistentes||{}, gastos:p.gastos||[], ingresos:p.ingresos||[], adicionales:p.adicionales||[], estado:p.estado||'pendiente',
+        motivoPendiente:p.motivoPendiente||'', fechaEstimadaTermino:p.fechaEstimadaTermino||'', responsableTerminoId:p.responsableTerminoId||'', fechaCompromisoTermino:p.fechaCompromisoTermino||''};
+      const newId = await guardarDoc('planificaciones', item);
+      if(!id){ item.id=newId; DATA.planificaciones.push(item); } else { Object.assign(p, item); }
+      render('planificacion');
+    });
+};
+window.eliminarPlanificacion = async function(id){ if(!requireAdmin())return; if(!confirm('¿Eliminar esta planificación?'))return; await borrarDoc('planificaciones', id); DATA.planificaciones=DATA.planificaciones.filter(p=>p.id!==id); render('planificacion'); };
+window.toggleAsistentePlanificacion = async function(planId, miembroId){
+  if(!requireAdmin()) return;
+  const p = DATA.planificaciones.find(x=>x.id===planId);
+  p.asistentes = p.asistentes||{};
+  p.asistentes[miembroId] = !p.asistentes[miembroId];
+  await guardarDoc('planificaciones', p);
+  render('planificacion');
+};
+window.abrirFormGastoPlanificacion = function(planId){
+  if(!requireAdmin()) return;
+  openModal('Nuevo gasto de la planificación', `
+    <label>Concepto</label><input name="concepto" required>
+    <label>Monto</label><input type="number" step="0.01" name="monto" required>
+    <label>Fecha</label><input type="date" name="fecha">`,
+    async (fd)=>{
+      const p = DATA.planificaciones.find(x=>x.id===planId);
+      p.gastos = p.gastos||[];
+      p.gastos.push({concepto:fd.get('concepto'), monto:fd.get('monto'), fecha:fd.get('fecha')});
+      await guardarDoc('planificaciones', p);
+      render('planificacion');
+    });
+};
+window.eliminarGastoPlanificacion = async function(planId, idx){ if(!requireAdmin())return; const p=DATA.planificaciones.find(x=>x.id===planId); p.gastos.splice(idx,1); await guardarDoc('planificaciones', p); render('planificacion'); };
+window.abrirFormIngresoPlanificacion = function(planId){
+  if(!requireAdmin()) return;
+  openModal('Nuevo ingreso de la planificación', `
+    <label>Concepto</label><input name="concepto" required>
+    <label>Monto</label><input type="number" step="0.01" name="monto" required>
+    <label>Fecha</label><input type="date" name="fecha">`,
+    async (fd)=>{
+      const p = DATA.planificaciones.find(x=>x.id===planId);
+      p.ingresos = p.ingresos||[];
+      p.ingresos.push({concepto:fd.get('concepto'), monto:fd.get('monto'), fecha:fd.get('fecha')});
+      await guardarDoc('planificaciones', p);
+      render('planificacion');
+    });
+};
+window.eliminarIngresoPlanificacion = async function(planId, idx){ if(!requireAdmin())return; const p=DATA.planificaciones.find(x=>x.id===planId); p.ingresos.splice(idx,1); await guardarDoc('planificaciones', p); render('planificacion'); };
+window.abrirFormAdicional = function(planId){
+  openModal('Nuevo adicional', `
+    <label>Miembro</label><select name="miembroId" required>${DATA.miembros.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}</select>
+    <label>Qué llevará</label><select name="item">${opciones(['Alimentos','Bebidas','Dulces','Utensilios/menaje','Decoración','Otro'])}</select>
+    <label>Cantidad / detalle</label><input name="detalle" placeholder="Ej: 2 litros de gaseosa, ensalada para 8 personas...">`,
+    async (fd)=>{
+      const p = DATA.planificaciones.find(x=>x.id===planId);
+      p.adicionales = p.adicionales||[];
+      p.adicionales.push({miembroId:fd.get('miembroId'), item:fd.get('item'), detalle:fd.get('detalle')});
+      await guardarDoc('planificaciones', p);
+      render('planificacion');
+    });
+};
+window.eliminarAdicionalPlanificacion = async function(planId, idx){ if(!requireAdmin())return; const p=DATA.planificaciones.find(x=>x.id===planId); p.adicionales.splice(idx,1); await guardarDoc('planificaciones', p); render('planificacion'); };
+window.cambiarEstadoPlanificacion = function(planId){
+  if(!requireAdmin()) return;
+  const p = DATA.planificaciones.find(x=>x.id===planId);
+  openModal('Actualizar estado de la planificación', `
+    <label>Estado</label><select name="estado" id="estadoPlanSelect" onchange="document.getElementById('camposPendiente').style.display = this.value==='pendiente' ? 'block':'none'">
+      <option value="pendiente" ${(p.estado||'pendiente')==='pendiente'?'selected':''}>Pendiente</option>
+      <option value="en_curso" ${p.estado==='en_curso'?'selected':''}>En curso</option>
+      <option value="finalizado" ${p.estado==='finalizado'?'selected':''}>Finalizado</option>
+    </select>
+    <div id="camposPendiente" style="display:${(p.estado||'pendiente')==='pendiente'?'block':'none'}">
+      <label>¿Por qué quedó pendiente?</label><textarea name="motivoPendiente" rows="2">${p.motivoPendiente||''}</textarea>
+      <label>Fecha estimada de término</label><input type="date" name="fechaEstimadaTermino" value="${p.fechaEstimadaTermino||''}">
+      <label>¿Quién se compromete a culminarlo?</label><select name="responsableTerminoId"><option value="">—</option>${DATA.miembros.map(m=>`<option value="${m.id}" ${p.responsableTerminoId===m.id?'selected':''}>${m.nombre}</option>`).join('')}</select>
+      <label>Fecha de compromiso</label><input type="date" name="fechaCompromisoTermino" value="${p.fechaCompromisoTermino||''}">
+    </div>`,
+    async (fd)=>{
+      p.estado = fd.get('estado');
+      if(p.estado==='pendiente'){
+        p.motivoPendiente = fd.get('motivoPendiente');
+        p.fechaEstimadaTermino = fd.get('fechaEstimadaTermino');
+        p.responsableTerminoId = fd.get('responsableTerminoId');
+        p.fechaCompromisoTermino = fd.get('fechaCompromisoTermino');
+      }
+      await guardarDoc('planificaciones', p);
+      render('planificacion');
+    });
+};
 
 /* =========================================================================
    11) SALUD
@@ -1300,52 +1514,115 @@ window.asignarAlAzar = async function(){
 };
 
 /* =========================================================================
-   14) REUNIONES — actas, asistentes y acuerdos registrados como compromisos
+   14) REUNIONES — actas, asistencia, aprobación de puntos y compromiso de próxima reunión
    ========================================================================= */
 function renderReuniones(){
   document.getElementById('content').innerHTML = `
-  ${topbar('Reuniones', 'Actas de reunión, asistentes y acuerdos registrados como compromisos', '<button class="btn" onclick="abrirFormReunion()">+ Nueva acta de reunión</button>')}
+  ${topbar('Reuniones', 'Actas de reunión, asistencia, acuerdos y aprobación de puntos', '<button class="btn" onclick="abrirFormReunion()">+ Nueva acta de reunión</button>')}
   <div id="reunionesContainer"></div>`;
   const ordenadas = [...DATA.reuniones].sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||''));
-  document.getElementById('reunionesContainer').innerHTML = ordenadas.map(r=>{
-    const asistentesNombres = (r.asistentes||[]).map(id=>(DATA.miembros.find(m=>m.id===id)||{}).nombre).filter(Boolean);
-    const compromisos = DATA.compromisos.filter(c=>c.reunionId===r.id);
-    const cumplidos = compromisos.filter(c=>c.estado==='cumplido').length;
-    return `<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3>📝 ${r.titulo}</h3>
-        ${isAdmin()?`<button class="btn small danger no-print" onclick="eliminarReunion('${r.id}')">Eliminar acta</button>`:''}
-      </div>
-      <p class="muted">${r.fecha? fmtFecha(r.fecha)+' de '+new Date(r.fecha+'T00:00:00').getFullYear() : '—'} ${r.lugar? '· '+r.lugar : ''}</p>
-      <p><b>Asistentes (${asistentesNombres.length}):</b> ${asistentesNombres.join(', ')||'—'}</p>
-      ${r.notas? `<p><b>Notas del acta:</b> ${r.notas}</p>`:''}
-      <h4 style="margin-top:12px;font-size:14px">✅ Acuerdos / Compromisos ${compromisos.length? `(${cumplidos}/${compromisos.length} cumplidos)`:''}</h4>
-      <table><tr><th>Acuerdo</th><th>Responsable</th><th>Fecha límite</th><th style="width:90px">Estado</th>${isAdmin()?'<th></th>':''}</tr>
-      ${compromisos.map(c=>{
-        const resp = DATA.miembros.find(m=>m.id===c.responsableId);
-        return `<tr><td>${c.texto}</td><td>${resp?resp.nombre:'—'}</td><td>${c.fechaLimite||'—'}</td>
-          <td style="text-align:center">${isAdmin()?`<button class="btn small ${c.estado==='cumplido'?'':'secondary'}" onclick="toggleCompromiso('${c.id}')">${c.estado==='cumplido'?'✅ Cumplido':'⏳ Pendiente'}</button>`:`<span class="pill ${c.estado==='cumplido'?'verde':'gold'}">${c.estado==='cumplido'?'Cumplido':'Pendiente'}</span>`}</td>
-          ${isAdmin()?`<td><button class="btn small danger" onclick="eliminarCompromiso('${c.id}')">✕</button></td>`:''}</tr>`;
-      }).join('') || `<tr><td colspan="5" class="muted">Sin acuerdos registrados.</td></tr>`}
-      </table>
-      <div class="no-print" style="margin-top:8px"><button class="btn small secondary" onclick="abrirFormCompromiso('${r.id}')">+ Agregar acuerdo</button></div>
-    </div>`;
-  }).join('') || '<p class="muted">Sin actas de reunión registradas aún.</p>';
+  document.getElementById('reunionesContainer').innerHTML = ordenadas.map(r=>renderReunionCard(r)).join('') || '<p class="muted">Sin actas de reunión registradas aún.</p>';
 }
-window.abrirFormReunion = function(){
-  openModal('Nueva acta de reunión', `
-    <label>Título de la reunión</label><input name="titulo" required placeholder="Ej: Reunión familiar de planificación">
-    <label>Fecha</label><input type="date" name="fecha" required value="${new Date().toISOString().slice(0,10)}">
-    <label>Lugar</label><input name="lugar">
-    <label>Asistentes</label>
-    <select name="asistentes" multiple size="${Math.min(DATA.miembros.length||1,6)}">${DATA.miembros.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}</select>
-    <p class="muted" style="font-size:11.5px">Mantén presionado Ctrl (o Cmd en Mac) para seleccionar varios.</p>
-    <label>Notas del acta (opcional)</label><textarea name="notas" rows="3"></textarea>`,
+function renderReunionCard(r){
+  const asistencia = r.asistencia||{};
+  const compromisoProxima = r.compromisoProxima||{};
+  const compromisos = DATA.compromisos.filter(c=>c.reunionId===r.id);
+  const cumplidos = compromisos.filter(c=>c.estado==='cumplido').length;
+  const APROB_TXT = {pendiente:'Pendiente', aprobado:'Aprobado', rechazado:'Rechazado'};
+  const APROB_CLS = {pendiente:'gold', aprobado:'verde', rechazado:'danger'};
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>📝 ${r.titulo}</h3>
+      <div class="no-print">${isAdmin()?`<button class="btn small secondary" onclick="abrirFormReunion('${r.id}')">Editar acta</button> <button class="btn small danger" onclick="eliminarReunion('${r.id}')">Eliminar acta</button>`:''}</div>
+    </div>
+    <p class="muted">${r.fecha? fmtFecha(r.fecha)+' de '+new Date(r.fecha+'T00:00:00').getFullYear() : '—'} ${r.lugar? '· '+r.lugar : ''}</p>
+    ${r.notas? `<p><b>Notas del acta:</b> ${r.notas}</p>`:''}
+
+    <h4 style="margin-top:14px;font-size:14px">✅ Checklist de asistencia</h4>
+    <table><tr><th>Miembro</th><th style="width:100px">¿Asistió?</th></tr>
+    ${DATA.miembros.map(m=>{
+      const asistio = !!asistencia[m.id];
+      return `<tr><td>${m.nombre}</td><td style="text-align:center"><span class="semaforo ${asistio?'verde':'gris'}" title="${asistio?'Asistió':'No registrado'}" ${isAdmin()?`onclick="toggleAsistencia('${r.id}','${m.id}')"`:''}></span></td></tr>`;
+    }).join('') || `<tr><td colspan="2" class="muted">Registra miembros primero.</td></tr>`}
+    </table>
+
+    <h4 style="margin-top:14px;font-size:14px">📋 Acuerdos, aprobación y cumplimiento ${compromisos.length? `(${cumplidos}/${compromisos.length} cumplidos)`:''}</h4>
+    <table><tr><th>Acuerdo</th><th>Responsable</th><th>Fecha límite</th><th style="width:110px">Aprobación</th><th style="width:110px">Cumplimiento</th>${isAdmin()?'<th></th>':''}</tr>
+    ${compromisos.map(c=>{
+      const resp = DATA.miembros.find(m=>m.id===c.responsableId);
+      const aprob = c.aprobacion||'pendiente';
+      return `<tr><td>${c.texto}</td><td>${resp?resp.nombre:'—'}</td><td>${c.fechaLimite||'—'}</td>
+        <td style="text-align:center">${isAdmin()?`<button class="btn small secondary" style="padding:3px 6px" onclick="cicloAprobacion('${c.id}')"><span class="pill ${APROB_CLS[aprob]}">${APROB_TXT[aprob]}</span></button>`:`<span class="pill ${APROB_CLS[aprob]}">${APROB_TXT[aprob]}</span>`}</td>
+        <td style="text-align:center">${isAdmin()?`<button class="btn small ${c.estado==='cumplido'?'':'secondary'}" onclick="toggleCompromiso('${c.id}')">${c.estado==='cumplido'?'✅ Cumplido':'⏳ Pendiente'}</button>`:`<span class="pill ${c.estado==='cumplido'?'verde':'gold'}">${c.estado==='cumplido'?'Cumplido':'Pendiente'}</span>`}</td>
+        ${isAdmin()?`<td><button class="btn small danger" onclick="eliminarCompromiso('${c.id}')">✕</button></td>`:''}</tr>`;
+    }).join('') || `<tr><td colspan="6" class="muted">Sin acuerdos registrados.</td></tr>`}
+    </table>
+    <div class="no-print" style="margin-top:8px"><button class="btn small secondary" onclick="abrirFormCompromiso('${r.id}')">+ Agregar acuerdo</button></div>
+
+    <h4 style="margin-top:16px;font-size:14px">🔁 Puntos pendientes — compromiso de asistencia a la próxima reunión</h4>
+    ${isAdmin()?`<div class="no-print" style="margin-bottom:8px"><button class="btn small secondary" onclick="configurarProximaReunion('${r.id}')">📅 Configurar próxima reunión</button></div>`:''}
+    ${r.proximaReunionFecha? `<p class="muted">Próxima reunión: <b>${fmtFecha(r.proximaReunionFecha)} de ${new Date(r.proximaReunionFecha+'T00:00:00').getFullYear()}</b></p>
+      <table><tr><th>Miembro</th><th style="width:140px">Compromiso de asistencia</th></tr>
+      ${DATA.miembros.map(m=>{
+        const c = compromisoProxima[m.id]||'sin_confirmar';
+        const txt = {si:'✅ Confirmado', no:'❌ No asistirá', sin_confirmar:'Sin confirmar'}[c];
+        const cls = {si:'verde', no:'danger', sin_confirmar:'gold'}[c];
+        return `<tr><td>${m.nombre}</td><td style="text-align:center">${isAdmin()?`<button class="btn small secondary" style="padding:3px 6px" onclick="cicloCompromisoProxima('${r.id}','${m.id}')"><span class="pill ${cls}">${txt}</span></button>`:`<span class="pill ${cls}">${txt}</span>`}</td></tr>`;
+      }).join('')}
+      </table>` : '<p class="muted">No se ha programado una próxima reunión para dar seguimiento a puntos pendientes.</p>'}
+  </div>`;
+}
+window.toggleAsistencia = async function(reunionId, miembroId){
+  if(!requireAdmin()) return;
+  const r = DATA.reuniones.find(x=>x.id===reunionId);
+  r.asistencia = r.asistencia||{};
+  r.asistencia[miembroId] = !r.asistencia[miembroId];
+  await guardarDoc('reuniones', r);
+  render('reuniones');
+};
+window.cicloAprobacion = async function(compromisoId){
+  if(!requireAdmin()) return;
+  const orden=['pendiente','aprobado','rechazado'];
+  const c = DATA.compromisos.find(x=>x.id===compromisoId);
+  c.aprobacion = orden[(orden.indexOf(c.aprobacion||'pendiente')+1)%orden.length];
+  await guardarDoc('compromisos', c);
+  render('reuniones');
+};
+window.configurarProximaReunion = function(reunionId){
+  if(!requireAdmin()) return;
+  const r = DATA.reuniones.find(x=>x.id===reunionId);
+  openModal('Configurar próxima reunión', `
+    <label>Fecha de la próxima reunión</label><input type="date" name="fecha" required value="${r.proximaReunionFecha||''}">`,
     async (fd)=>{
-      const asistentes = Array.from(document.querySelector('select[name=asistentes]').selectedOptions).map(o=>o.value);
-      const item={titulo:fd.get('titulo'), fecha:fd.get('fecha'), lugar:fd.get('lugar'), asistentes, notas:fd.get('notas')};
-      item.id = await guardarDoc('reuniones', item);
-      DATA.reuniones.push(item);
+      r.proximaReunionFecha = fd.get('fecha');
+      r.compromisoProxima = r.compromisoProxima||{};
+      await guardarDoc('reuniones', r);
+      render('reuniones');
+    });
+};
+window.cicloCompromisoProxima = async function(reunionId, miembroId){
+  if(!requireAdmin()) return;
+  const orden=['sin_confirmar','si','no'];
+  const r = DATA.reuniones.find(x=>x.id===reunionId);
+  r.compromisoProxima = r.compromisoProxima||{};
+  const actual = r.compromisoProxima[miembroId]||'sin_confirmar';
+  r.compromisoProxima[miembroId] = orden[(orden.indexOf(actual)+1)%orden.length];
+  await guardarDoc('reuniones', r);
+  render('reuniones');
+};
+window.abrirFormReunion = function(id){
+  if(id && !requireAdmin()) return;
+  const r = id? DATA.reuniones.find(x=>x.id===id) : {asistencia:{}, compromisoProxima:{}};
+  openModal(id?'Editar acta de reunión':'Nueva acta de reunión', `
+    <label>Título de la reunión</label><input name="titulo" required placeholder="Ej: Reunión familiar de planificación" value="${r.titulo||''}">
+    <label>Fecha</label><input type="date" name="fecha" required value="${r.fecha||new Date().toISOString().slice(0,10)}">
+    <label>Lugar</label><input name="lugar" value="${r.lugar||''}">
+    <label>Notas del acta (opcional)</label><textarea name="notas" rows="3">${r.notas||''}</textarea>
+    <p class="muted" style="font-size:11.5px">La asistencia se marca con el checklist dentro del acta, una vez guardada.</p>`,
+    async (fd)=>{
+      const item={id, titulo:fd.get('titulo'), fecha:fd.get('fecha'), lugar:fd.get('lugar'), notas:fd.get('notas'), asistencia:r.asistencia||{}, proximaReunionFecha:r.proximaReunionFecha||'', compromisoProxima:r.compromisoProxima||{}};
+      const newId = await guardarDoc('reuniones', item);
+      if(!id){ item.id=newId; DATA.reuniones.push(item); } else { Object.assign(r, item); }
       render('reuniones');
     });
 };
@@ -1365,7 +1642,7 @@ window.abrirFormCompromiso = function(reunionId){
     <label>Responsable</label><select name="responsableId">${DATA.miembros.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}</select>
     <label>Fecha límite</label><input type="date" name="fechaLimite">`,
     async (fd)=>{
-      const item={reunionId, texto:fd.get('texto'), responsableId:fd.get('responsableId'), fechaLimite:fd.get('fechaLimite'), estado:'pendiente'};
+      const item={reunionId, texto:fd.get('texto'), responsableId:fd.get('responsableId'), fechaLimite:fd.get('fechaLimite'), estado:'pendiente', aprobacion:'pendiente'};
       item.id = await guardarDoc('compromisos', item);
       DATA.compromisos.push(item);
       render('reuniones');
