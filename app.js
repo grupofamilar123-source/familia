@@ -1634,14 +1634,15 @@ function renderReunionCard(r){
     </table>
 
     <h4 style="margin-top:14px;font-size:14px">📋 Acuerdos, aprobación y cumplimiento ${compromisos.length? `(${cumplidos}/${compromisos.length} cumplidos)`:''}</h4>
-    <table><tr><th>Acuerdo</th><th>Responsable</th><th>Fecha límite</th><th style="width:110px">Aprobación</th><th style="width:110px">Cumplimiento</th>${isAdmin()?'<th></th>':''}</tr>
+    <table><tr><th>Acuerdo</th><th>Responsables</th><th>Fecha límite</th><th style="width:110px">Aprobación</th><th style="width:110px">Cumplimiento</th>${isAdmin()?'<th></th>':''}</tr>
     ${compromisos.map(c=>{
-      const resp = DATA.miembros.find(m=>m.id===c.responsableId);
+      const respIds = c.responsableIds || (c.responsableId? [c.responsableId] : []);
+      const respNombres = respIds.map(id=>(DATA.miembros.find(m=>m.id===id)||{}).nombre).filter(Boolean).join(', ');
       const aprob = c.aprobacion||'pendiente';
-      return `<tr><td>${c.texto}</td><td>${resp?resp.nombre:'—'}</td><td>${c.fechaLimite||'—'}</td>
+      return `<tr><td>${c.texto}</td><td>${respNombres||'—'}</td><td>${c.fechaLimite||'—'}</td>
         <td style="text-align:center">${isAdmin()?`<button class="btn small secondary" style="padding:3px 6px" onclick="cicloAprobacion('${c.id}')"><span class="pill ${APROB_CLS[aprob]}">${APROB_TXT[aprob]}</span></button>`:`<span class="pill ${APROB_CLS[aprob]}">${APROB_TXT[aprob]}</span>`}</td>
         <td style="text-align:center">${isAdmin()?`<button class="btn small ${c.estado==='cumplido'?'':'secondary'}" onclick="toggleCompromiso('${c.id}')">${c.estado==='cumplido'?'✅ Cumplido':'⏳ Pendiente'}</button>`:`<span class="pill ${c.estado==='cumplido'?'verde':'gold'}">${c.estado==='cumplido'?'Cumplido':'Pendiente'}</span>`}</td>
-        ${isAdmin()?`<td><button class="btn small danger" onclick="eliminarCompromiso('${c.id}')">✕</button></td>`:''}</tr>`;
+        ${isAdmin()?`<td><button class="btn small secondary" onclick="abrirFormCompromiso('${r.id}','${c.id}')">Editar</button> <button class="btn small danger" onclick="eliminarCompromiso('${c.id}')">✕</button></td>`:''}</tr>`;
     }).join('') || `<tr><td colspan="6" class="muted">Sin acuerdos registrados.</td></tr>`}
     </table>
     <div class="no-print" style="margin-top:8px"><button class="btn small secondary" onclick="abrirFormCompromiso('${r.id}')">+ Agregar acuerdo</button></div>
@@ -1723,15 +1724,26 @@ window.eliminarReunion = async function(id){
   DATA.compromisos = DATA.compromisos.filter(c=>c.reunionId!==id);
   render('reuniones');
 };
-window.abrirFormCompromiso = function(reunionId){
-  openModal('Nuevo acuerdo / compromiso', `
-    <label>Acuerdo</label><textarea name="texto" rows="2" required placeholder="Ej: Cotizar el seguro vehicular antes de fin de mes"></textarea>
-    <label>Responsable</label><select name="responsableId">${DATA.miembros.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}</select>
-    <label>Fecha límite</label><input type="date" name="fechaLimite">`,
+window.abrirFormCompromiso = function(reunionId, compromisoId){
+  if(compromisoId && !requireAdmin()) return;
+  const c = compromisoId? DATA.compromisos.find(x=>x.id===compromisoId) : null;
+  const respIdsActuales = c? (c.responsableIds || (c.responsableId? [c.responsableId] : [])) : [];
+  openModal(compromisoId?'Editar acuerdo / compromiso':'Nuevo acuerdo / compromiso', `
+    <label>Acuerdo</label><textarea name="texto" rows="2" required placeholder="Ej: Cotizar el seguro vehicular antes de fin de mes">${c?c.texto:''}</textarea>
+    <label>Responsable(s)</label>
+    <select name="responsableIds" multiple size="${Math.min(DATA.miembros.length||1,6)}">${DATA.miembros.map(m=>`<option value="${m.id}" ${respIdsActuales.includes(m.id)?'selected':''}>${m.nombre}</option>`).join('')}</select>
+    <p class="muted" style="font-size:11.5px">Mantén presionado Ctrl (o Cmd en Mac) para seleccionar varios responsables.</p>
+    <label>Fecha límite</label><input type="date" name="fechaLimite" value="${c?c.fechaLimite||'':''}">`,
     async (fd)=>{
-      const item={reunionId, texto:fd.get('texto'), responsableId:fd.get('responsableId'), fechaLimite:fd.get('fechaLimite'), estado:'pendiente', aprobacion:'pendiente'};
-      item.id = await guardarDoc('compromisos', item);
-      DATA.compromisos.push(item);
+      const responsableIds = Array.from(document.querySelector('select[name=responsableIds]').selectedOptions).map(o=>o.value);
+      if(compromisoId){
+        c.texto = fd.get('texto'); c.responsableIds = responsableIds; delete c.responsableId; c.fechaLimite = fd.get('fechaLimite');
+        await guardarDoc('compromisos', c);
+      } else {
+        const item={reunionId, texto:fd.get('texto'), responsableIds, fechaLimite:fd.get('fechaLimite'), estado:'pendiente', aprobacion:'pendiente'};
+        item.id = await guardarDoc('compromisos', item);
+        DATA.compromisos.push(item);
+      }
       render('reuniones');
     });
 };
