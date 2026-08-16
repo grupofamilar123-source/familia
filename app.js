@@ -78,6 +78,31 @@ const MANUAL_EQUIPO_SEGURIDAD = `MANUAL DEL EQUIPO DE SEGURIDAD FAMILIAR
 
 7. REPORTE: tras cada revisión, el equipo debe registrar hallazgos y recomendaciones en el sistema (área Seguridad) para que el administrador y los miembros puedan consultarlos.`;
 
+// ---------- Requisitos específicos por tipo de plan (semilla) — el admin puede editar/añadir/eliminar ----------
+const SEGURIDAD_ITEMS_SEED = [
+  {planTipo:"Terremoto", item:"Mochila de emergencia", descripcion:"Debe contener: agua embotellada (mín. 2L por persona), linterna con pilas de repuesto, radio a pilas, botiquín de primeros auxilios, silbato, copias de documentos de identidad, dinero en efectivo, medicamentos esenciales, manta térmica, comida no perecible."},
+  {planTipo:"Terremoto", item:"Fijación de muebles", descripcion:"Repisas, estanterías y objetos pesados anclados a la pared en cada vivienda del grupo familiar."},
+  {planTipo:"Terremoto", item:"Punto de encuentro definido", descripcion:"Lugar seguro y conocido por todos los miembros, fuera de la vivienda, para reunirse tras el sismo."},
+  {planTipo:"Terremoto", item:"Zonas seguras internas identificadas", descripcion:"Cada miembro sabe a qué lugar de la casa (bajo mesa robusta, junto a columna) dirigirse durante el sismo."},
+
+  {planTipo:"Fenómeno del Niño (lluvias/inundaciones)", item:"Canaletas y desagües limpios", descripcion:"Revisión antes y durante la temporada de lluvias."},
+  {planTipo:"Fenómeno del Niño (lluvias/inundaciones)", item:"Kit de emergencia impermeable", descripcion:"Bolsa impermeable con documentos, linterna, radio, medicamentos y muda de ropa."},
+  {planTipo:"Fenómeno del Niño (lluvias/inundaciones)", item:"Ruta alterna a zona alta", descripcion:"Ruta identificada y conocida por todo el grupo familiar en caso de inundación."},
+
+  {planTipo:"Incendio", item:"Extintor tipo ABC", descripcion:"Vigente, accesible y todos los miembros saben usarlo. Ubicado cerca de la cocina."},
+  {planTipo:"Incendio", item:"Detector de humo", descripcion:"Funcional, con batería revisada cada 6 meses."},
+  {planTipo:"Incendio", item:"Dos rutas de salida", descripcion:"Identificadas y despejadas en cada vivienda, con punto de encuentro definido."},
+
+  {planTipo:"Deslave / deslizamiento", item:"Evaluación de riesgo del terreno", descripcion:"Vivienda revisada según mapas municipales de riesgo (laderas, quebradas)."},
+  {planTipo:"Deslave / deslizamiento", item:"Ruta de evacuación a zona alta", descripcion:"Conocida por todos los miembros del grupo familiar."},
+
+  {planTipo:"Robo / seguridad ciudadana", item:"Cerraduras y cámaras", descripcion:"Cerraduras de calidad, cámaras funcionando e iluminación exterior adecuada."},
+  {planTipo:"Robo / seguridad ciudadana", item:"Contacto con vecinos/alertas", descripcion:"Grupo familiar integrado a alguna red de alerta comunitaria del sector."},
+
+  {planTipo:"Corte de energía eléctrica prolongado", item:"Linternas y power bank cargados", descripcion:"Disponibles y con carga completa en cada vivienda."},
+  {planTipo:"Corte de energía eléctrica prolongado", item:"Reserva de agua", descripcion:"Reserva de agua potable ante posible corte de bombeo."}
+];
+
 // ---------- Recomendaciones estáticas (motor de sugerencias "IA gratuita" basado en reglas) ----------
 const REC_SEGUROS = `RECOMENDACIONES GENERALES DE SEGUROS PARA EL GRUPO FAMILIAR:
 • Seguro de vida: prioritario para el(los) proveedor(es) principal(es) de ingresos — protege al resto del grupo ante pérdida de ingreso familiar.
@@ -102,19 +127,34 @@ function recomendacionMedica(enfermedad){
   if(!enfermedad) return "";
   const e = enfermedad.toLowerCase();
   const tabla = {
-    "gripe":"Reposo, hidratación abundante, paracetamol para fiebre/dolor según indicación de dosis por peso y edad. Consultar médico si la fiebre persiste más de 3 días.",
-    "resfriado":"Hidratación, reposo, suero fisiológico nasal en niños. Evitar antibióticos sin indicación médica (es viral).",
-    "gastritis":"Evitar comidas irritantes, picantes y café; fraccionar comidas; consultar si hay dolor persistente o sangrado.",
-    "migrana":"Reposo en ambiente oscuro y silencioso, hidratación, analgésico según indicación médica; identificar y evitar desencadenantes.",
-    "migraña":"Reposo en ambiente oscuro y silencioso, hidratación, analgésico según indicación médica; identificar y evitar desencadenantes.",
-    "hipertension":"Control regular de presión arterial, reducir sal, actividad física moderada, seguimiento médico periódico.",
-    "hipertensión":"Control regular de presión arterial, reducir sal, actividad física moderada, seguimiento médico periódico.",
-    "diabetes":"Control de glicemia según indicación médica, dieta balanceada baja en azúcares simples, actividad física regular, chequeos periódicos.",
-    "asma":"Evitar desencadenantes (polvo, humo, frío intenso), tener siempre a mano el inhalador de rescate indicado por el médico, control periódico con neumólogo.",
-    "alergia":"Identificar y evitar el alergeno conocido; tener antihistamínico indicado por el médico disponible; en reacciones severas acudir a emergencia inmediatamente."
+    "gripe":"Reposo, hidratación abundante, paracetamol para fiebre/dolor según indicación de dosis por peso y edad. Consultar médico si la fiebre persiste más de 3 días. Exámenes sugeridos: ninguno en cuadros leves; hemograma si hay fiebre alta persistente.",
+    "resfriado":"Hidratación, reposo, suero fisiológico nasal en niños. Evitar antibióticos sin indicación médica (es viral). Vigilar evolución a los 7-10 días.",
+    "gastritis":"Evitar comidas irritantes, picantes y café; fraccionar comidas; consultar si hay dolor persistente o sangrado. Examen sugerido: endoscopía si el dolor persiste más de 2-3 semanas o hay síntomas de alarma.",
+    "migrana":"Reposo en ambiente oscuro y silencioso, hidratación, analgésico según indicación médica; identificar y evitar desencadenantes. Llevar un diario de episodios ayuda al diagnóstico.",
+    "migraña":"Reposo en ambiente oscuro y silencioso, hidratación, analgésico según indicación médica; identificar y evitar desencadenantes. Llevar un diario de episodios ayuda al diagnóstico.",
+    "hipertension":"Control regular de presión arterial (idealmente en casa), reducir sal, actividad física moderada, seguimiento médico periódico. Examen sugerido: perfil lipídico y función renal cada 6-12 meses.",
+    "hipertensión":"Control regular de presión arterial (idealmente en casa), reducir sal, actividad física moderada, seguimiento médico periódico. Examen sugerido: perfil lipídico y función renal cada 6-12 meses.",
+    "diabetes":"Control de glicemia según indicación médica, dieta balanceada baja en azúcares simples, actividad física regular, chequeos periódicos. Examen sugerido: hemoglobina glicosilada (HbA1c) cada 3-6 meses, examen de la vista y de pies anual.",
+    "asma":"Evitar desencadenantes (polvo, humo, frío intenso), tener siempre a mano el inhalador de rescate indicado por el médico, control periódico con neumólogo. Examen sugerido: espirometría anual.",
+    "alergia":"Identificar y evitar el alergeno conocido; tener antihistamínico indicado por el médico disponible; en reacciones severas acudir a emergencia inmediatamente. Examen sugerido: pruebas de alergia si no se ha identificado el desencadenante.",
+    "colesterol":"Dieta baja en grasas saturadas, aumentar fibra y actividad física, seguimiento médico. Examen sugerido: perfil lipídico completo cada 6-12 meses.",
+    "tiroides":"Seguimiento médico regular según tipo de condición (hipo/hipertiroidismo), no suspender medicación sin indicación. Examen sugerido: perfil tiroideo (TSH, T3, T4) cada 6-12 meses.",
+    "hipotiroidismo":"Tomar la medicación en ayunas según indicación médica, no suspenderla. Examen sugerido: TSH cada 6-12 meses o según indicación del endocrinólogo.",
+    "anemia":"Dieta rica en hierro (carnes rojas, legumbres, verduras de hoja verde) combinada con vitamina C para mejor absorción. Examen sugerido: hemograma completo y ferritina cada 6 meses hasta normalizar.",
+    "artritis":"Actividad física de bajo impacto (natación, caminata), control de peso, manejo del dolor según indicación médica. Examen sugerido: control reumatológico periódico.",
+    "osteoporosis":"Dieta rica en calcio y vitamina D, ejercicio de resistencia, evitar caídas. Examen sugerido: densitometría ósea cada 1-2 años.",
+    "obesidad":"Plan de alimentación balanceado y actividad física progresiva con seguimiento profesional (nutricionista/médico). Examen sugerido: perfil metabólico (glicemia, lípidos) anual.",
+    "reflujo":"Evitar comidas copiosas antes de dormir, elevar la cabecera de la cama, evitar irritantes (café, alcohol, picantes). Examen sugerido: endoscopía si los síntomas son persistentes o hay señales de alarma.",
+    "bronquitis":"Hidratación abundante, evitar irritantes como el humo, reposo. Consultar si hay dificultad respiratoria o fiebre alta persistente.",
+    "sinusitis":"Lavados nasales con suero fisiológico, hidratación, humedad ambiental. Consultar si los síntomas persisten más de 10 días.",
+    "insomnio":"Rutina de sueño regular, evitar pantallas antes de dormir, evitar cafeína en la tarde. Consultar si persiste más de un mes, para descartar causas médicas.",
+    "ansiedad":"Técnicas de respiración y relajación, actividad física regular, buena higiene de sueño. Se recomienda acompañamiento profesional si interfiere con la vida diaria.",
+    "colon irritable":"Identificar y evitar alimentos desencadenantes, manejo del estrés, fibra soluble en la dieta. Consultar si hay pérdida de peso o sangrado.",
+    "varices":"Evitar estar de pie o sentado por periodos prolongados sin moverse, uso de medias de compresión si el médico lo indica, elevar las piernas. Examen sugerido: eco-doppler venoso si empeora.",
+    "migraine":"Reposo en ambiente oscuro y silencioso, hidratación, analgésico según indicación médica."
   };
   for(const k in tabla){ if(e.includes(k)) return tabla[k]; }
-  return "Se recomienda consultar con un médico general para diagnóstico y tratamiento adecuado; mantener registro de síntomas y evolución en esta sección.";
+  return "Se recomienda consultar con un médico general para diagnóstico y tratamiento adecuado; mantener registro de síntomas y evolución en esta sección. Como referencia general, se sugiere un chequeo médico y exámenes de laboratorio básicos (hemograma, glicemia, perfil lipídico) al menos una vez al año.";
 }
 
 function citasPorEdad(edad){
@@ -180,7 +220,8 @@ function initials(name){ return (name||'?').split(' ').filter(Boolean).slice(0,2
 // ---------- Estado global ----------
 let CURRENT_USER = null;   // {uid, email, rol, miembroId}
 let DATA = { miembros:[], familias:[], planes:[], equipoRevisiones:[], fondos:{aportes:[],gastos:[],convenios:[],banco:'',cuotaMensual:null,fechaAcuerdo:'',cumplimientos:{}},
-             seguros:[], telefonos:[], estructuras:[], diversionPropuestas:[], diversionRespuestas:[], salud:[], ideas:[], delegaciones:[] };
+             seguros:[], telefonos:[], estructuras:[], diversionPropuestas:[], diversionRespuestas:[], salud:[], ideas:[], delegaciones:[],
+             seguridadItems:[], seguridadCumplimiento:[], saludCitasManual:[], saludCumplimiento:[], reuniones:[], compromisos:[] };
 let CURRENT_VIEW = 'dashboard';
 const isAdmin = ()=> CURRENT_USER && CURRENT_USER.rol==='admin';
 
@@ -230,14 +271,18 @@ async function colToArray(name){
 }
 async function cargarTodo(){
   try{
-    const [miembros, familias, planes, equipoRevisiones, seguros, telefonos, estructuras, diversionPropuestas, diversionRespuestas, salud, ideas, delegaciones] =
-      await Promise.all(['miembros','familias','planesSeguridad','revisionesSeguridad','seguros','telefonos','estructuras','diversionPropuestas','diversionRespuestas','salud','ideas','delegaciones'].map(colToArray));
+    const [miembros, familias, planes, equipoRevisiones, seguros, telefonos, estructuras, diversionPropuestas, diversionRespuestas, salud, ideas, delegaciones, seguridadItems, seguridadCumplimiento, saludCitasManual, saludCumplimiento, reuniones, compromisos] =
+      await Promise.all(['miembros','familias','planesSeguridad','revisionesSeguridad','seguros','telefonos','estructuras','diversionPropuestas','diversionRespuestas','salud','ideas','delegaciones','seguridadItems','seguridadCumplimiento','saludCitasManual','saludCumplimiento','reuniones','compromisos'].map(colToArray));
     DATA.miembros=miembros; DATA.familias=familias;
     DATA.planes = planes.length? planes : PLANES_SEED.map(p=>({id:uid(),...p}));
     DATA.equipoRevisiones=equipoRevisiones;
     DATA.seguros=seguros; DATA.telefonos=telefonos; DATA.estructuras=estructuras;
     DATA.diversionPropuestas=diversionPropuestas; DATA.diversionRespuestas=diversionRespuestas;
     DATA.salud=salud; DATA.ideas=ideas; DATA.delegaciones=delegaciones;
+    DATA.seguridadItems = seguridadItems.length? seguridadItems : SEGURIDAD_ITEMS_SEED.map(i=>({id:uid(),...i}));
+    DATA.seguridadCumplimiento = seguridadCumplimiento;
+    DATA.saludCitasManual = saludCitasManual; DATA.saludCumplimiento = saludCumplimiento;
+    DATA.reuniones = reuniones; DATA.compromisos = compromisos;
     const fondosDoc = await db.collection('fondos').doc('main').get();
     DATA.fondos = fondosDoc.exists? fondosDoc.data() : {aportes:[],gastos:[],convenios:[],banco:'',cuotaMensual:null,fechaAcuerdo:'',cumplimientos:{}};
     if(!DATA.fondos.cumplimientos) DATA.fondos.cumplimientos={};
@@ -273,7 +318,7 @@ function render(view){
     dashboard: renderDashboard, grupo: renderGrupo, seguridad: renderSeguridad, fondos: renderFondos,
     seguros: renderSeguros, telefonos: renderTelefonos, cumpleanos: renderCumpleanos, estructuras: renderEstructuras,
     diversion: renderDiversion, planificacion: renderPlanificacion, salud: renderSalud, ideas: renderIdeas,
-    delegaciones: renderDelegaciones, accesos: renderAccesos
+    delegaciones: renderDelegaciones, accesos: renderAccesos, reuniones: renderReuniones
   };
   (renderers[view]||renderDashboard)();
 }
@@ -516,8 +561,8 @@ window.eliminarMiembro = async function(id){
    ========================================================================= */
 function renderSeguridad(){
   document.getElementById('content').innerHTML = `
-  ${topbar('Seguridad', 'Planes de contingencia y equipo de seguridad familiar', isAdmin()?'<button class="btn" onclick="abrirFormPlan()">+ Nuevo plan</button>':'')}
-  <div class="grid cols-2" id="planesContainer"></div>
+  ${topbar('Seguridad', 'Planes de contingencia, requisitos específicos y cumplimiento por grupo familiar', isAdmin()?'<button class="btn" onclick="abrirFormPlan()">+ Nuevo plan</button>':'')}
+  <div id="planesContainer"></div>
   <div class="card">
     <h3>👥 Equipo de seguridad — Manual</h3>
     <p class="muted">Responsable de revisar viviendas, escuelas, trabajo y vehículos, y recomendar zonas seguras.</p>
@@ -535,13 +580,81 @@ function renderSeguridad(){
     ${EMERGENCIA_EC.map(e=>`<tr><td>${e.zona}</td><td>${e.servicio}</td><td><b>${e.tel}</b></td></tr>`).join('')}
     </table>
   </div>`;
-  document.getElementById('planesContainer').innerHTML = DATA.planes.map(p=>`
-    <div class="card">
-      <h3>🛡️ ${p.tipo}</h3>
-      <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px">${p.contenido}</pre>
-      ${isAdmin()?`<div class="no-print"><button class="btn small secondary" onclick="abrirFormPlan('${p.id}')">Editar</button> <button class="btn small danger" onclick="eliminarPlan('${p.id}')">Eliminar</button></div>`:''}
-    </div>`).join('');
+  document.getElementById('planesContainer').innerHTML = DATA.planes.map(p=>renderPlanCard(p)).join('');
 }
+function renderPlanCard(p){
+  const items = DATA.seguridadItems.filter(i=>i.planTipo===p.tipo);
+  const gruposParaMostrar = DATA.familias.length? DATA.familias : [];
+  return `<div class="card">
+    <h3>🛡️ ${p.tipo}</h3>
+    <p class="muted" style="font-size:11.5px;text-transform:uppercase;letter-spacing:.5px">Plan general</p>
+    <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px">${p.contenido}</pre>
+    ${isAdmin()?`<div class="no-print"><button class="btn small secondary" onclick="abrirFormPlan('${p.id}')">Editar plan</button> <button class="btn small danger" onclick="eliminarPlan('${p.id}')">Eliminar</button></div>`:''}
+
+    <h4 style="margin-top:18px">✅ Requisitos específicos y cumplimiento por grupo familiar</h4>
+    ${items.length===0? '<p class="muted">Sin requisitos específicos definidos.</p>' : items.map(it=>`
+      <div style="background:#fafbfd;border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between">
+          <b>${it.item}</b>
+          ${isAdmin()?`<span class="no-print"><a href="#" onclick="eliminarItemSeguridad('${it.id}');return false;" style="color:var(--danger);font-size:12px">eliminar</a></span>`:''}
+        </div>
+        <p class="muted" style="font-size:13px">${it.descripcion||''}</p>
+        ${gruposParaMostrar.length? `
+        <table style="margin-top:6px"><tr><th>Grupo familiar</th><th style="width:90px">Estado</th></tr>
+        ${gruposParaMostrar.map(f=>{
+          const c = DATA.seguridadCumplimiento.find(x=>x.itemId===it.id && x.familiaId===f.id);
+          const estado = c? c.estado : 'gris';
+          const texto = {gris:'Sin evaluar', rojo:'No cumple', amarillo:'Cumple parcial', verde:'Cumple'}[estado];
+          return `<tr><td>${f.nombre}</td><td style="text-align:center">
+            <span class="semaforo ${estado}" title="${texto}" ${isAdmin()?`onclick="cicloCumplimientoSeguridad('${it.id}','${f.id}')"`:''}></span>
+            <span class="muted" style="font-size:11px;display:block">${texto}</span>
+          </td></tr>`;
+        }).join('')}
+        </table>` : '<p class="muted" style="font-size:12px">Registra grupos familiares en "Grupo familiar" para poder evaluar cumplimiento.</p>'}
+      </div>`).join('')}
+    ${isAdmin()?`<button class="btn small secondary no-print" onclick="abrirFormItemSeguridad('${p.tipo}')">+ Añadir requisito específico</button>`:''}
+  </div>`;
+}
+window.abrirFormItemSeguridad = function(planTipo){
+  if(!requireAdmin()) return;
+  openModal('Nuevo requisito específico — '+planTipo, `
+    <label>Nombre del requisito</label><input name="item" required placeholder="Ej: Mochila de emergencia">
+    <label>¿Qué debe cumplir/contener?</label><textarea name="descripcion" rows="3" placeholder="Ej: agua, linterna, botiquín, radio, copias de documentos..."></textarea>`,
+    async (fd)=>{
+      const item={planTipo, item:fd.get('item'), descripcion:fd.get('descripcion')};
+      item.id = await guardarDoc('seguridadItems', item);
+      DATA.seguridadItems.push(item);
+      render('seguridad');
+    });
+};
+window.eliminarItemSeguridad = async function(id){
+  if(!requireAdmin()) return;
+  if(!confirm('¿Eliminar este requisito? También se borrará su cumplimiento registrado por grupo familiar.')) return;
+  await borrarDoc('seguridadItems', id);
+  DATA.seguridadItems = DATA.seguridadItems.filter(i=>i.id!==id);
+  const relacionados = DATA.seguridadCumplimiento.filter(c=>c.itemId===id);
+  for(const c of relacionados){ await borrarDoc('seguridadCumplimiento', c.id); }
+  DATA.seguridadCumplimiento = DATA.seguridadCumplimiento.filter(c=>c.itemId!==id);
+  render('seguridad');
+};
+window.cicloCumplimientoSeguridad = async function(itemId, familiaId){
+  if(!requireAdmin()) return;
+  const orden = ['gris','rojo','amarillo','verde'];
+  let c = DATA.seguridadCumplimiento.find(x=>x.itemId===itemId && x.familiaId===familiaId);
+  const actual = c? c.estado : 'gris';
+  const siguiente = orden[(orden.indexOf(actual)+1) % orden.length];
+  if(siguiente==='gris'){
+    if(c){ await borrarDoc('seguridadCumplimiento', c.id); DATA.seguridadCumplimiento = DATA.seguridadCumplimiento.filter(x=>x!==c); }
+  } else if(c){
+    c.estado = siguiente;
+    await guardarDoc('seguridadCumplimiento', c);
+  } else {
+    const nuevo = {itemId, familiaId, estado:siguiente};
+    nuevo.id = await guardarDoc('seguridadCumplimiento', nuevo);
+    DATA.seguridadCumplimiento.push(nuevo);
+  }
+  render('seguridad');
+};
 window.abrirFormPlan = function(id){
   if(!requireAdmin()) return;
   const p = id? DATA.planes.find(x=>x.id===id): {tipo:'',contenido:''};
@@ -933,7 +1046,20 @@ function renderPlanificacion(){
 function renderSalud(){
   document.getElementById('content').innerHTML = `
   ${topbar('Salud', 'Enfermedades, medicamentos, alergias y planificación médica', isAdmin()?'<button class="btn" onclick="abrirFormSalud()">+ Registro de salud</button>':'')}
-  <div id="saludContainer"></div>`;
+  <div id="saludContainer"></div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>🗓️ Citas médicas del grupo familiar (manuales)</h3>
+      <button class="btn secondary no-print" onclick="abrirFormCitaManual()">+ Nueva cita mensual/anual</button>
+    </div>
+    <p class="muted">Además de las citas sugeridas automáticamente por edad, aquí puedes registrar citas que el grupo familiar acuerde (ej. control dental cada 6 meses, chequeo general anual) y llevar el checklist de cumplimiento.</p>
+    <div id="citasManualesContainer"></div>
+  </div>`;
+  renderSaludMiembros();
+  renderCitasManuales();
+}
+function renderSaludMiembros(){
+  const anioActual = new Date().getFullYear();
   document.getElementById('saludContainer').innerHTML = DATA.miembros.map(m=>{
     const registros = DATA.salud.filter(s=>s.miembroId===m.id);
     const citas = citasPorEdad(edadDesde(m.fechaNacimiento)||0);
@@ -945,18 +1071,105 @@ function renderSalud(){
         <p><b>Medicamento actual:</b> ${r.medicamento||'—'}</p>
         <p class="muted"><b>Recomendación (IA):</b> ${recomendacionMedica(r.enfermedad)}</p>
         ${isAdmin()?`<button class="btn small danger" onclick="eliminarSalud('${r.id}')">Eliminar</button>`:''}
-        </div>`).join('') : '<p class="muted">Sin condiciones registradas.</p>'}
-      <details style="margin-top:8px"><summary class="muted" style="cursor:pointer">📅 Planificación anual de citas médicas recomendadas</summary>
-        <table style="margin-top:6px"><tr><th>Tipo de cita</th><th>Frecuencia</th></tr>
-        ${citas.map(c=>`<tr><td>${c.tipo}</td><td>${c.frecuencia}</td></tr>`).join('')}</table>
-      </details>
+        </div>`).join('') : '<p class="muted">Sin condiciones registradas. Recomendación general: chequeo médico y exámenes de laboratorio básicos al menos una vez al año.</p>'}
+      <h4 style="margin-top:12px;font-size:14px">📋 Chequeos/exámenes recomendados y cumplimiento ${anioActual}</h4>
+      <table style="margin-top:6px"><tr><th>Tipo de cita</th><th>Frecuencia</th><th style="width:110px">Realizado en ${anioActual}</th></tr>
+      ${citas.map(c=>{
+        const key = m.id+'_'+c.tipo+'_'+anioActual;
+        const hecho = !!DATA.saludCumplimiento.find(x=>x.key===key);
+        return `<tr><td>${c.tipo}</td><td>${c.frecuencia}</td><td style="text-align:center">
+          <span class="semaforo ${hecho?'verde':'gris'}" title="${hecho?'Realizado':'Pendiente'}" onclick="toggleCumplimientoExamen('${m.id}','${c.tipo.replace(/'/g,"")}')"></span>
+        </td></tr>`;
+      }).join('')}
+      </table>
     </div>`;
   }).join('') || '<p class="muted">Registra primero miembros en Grupo familiar.</p>';
-  document.getElementById('content').insertAdjacentHTML('beforeend', `<div class="card">
-    <h3>🥗 Recomendación general de alimentación saludable (IA)</h3>
-    <p>Priorizar frutas y verduras frescas de temporada, proteína magra (pollo, pescado, legumbres), granos enteros y abundante agua. Reducir azúcares refinados, frituras y comida ultraprocesada. Planificar el menú semanal en familia ayuda a mantener hábitos consistentes.</p>
-  </div>`);
+  document.getElementById('content').insertAdjacentHTML('beforeend', ''); // no-op placeholder for structure
+  const alimentacionCard = document.createElement('div');
+  alimentacionCard.className='card';
+  alimentacionCard.innerHTML = `<h3>🥗 Recomendación general de alimentación saludable (IA)</h3>
+    <p>Priorizar frutas y verduras frescas de temporada, proteína magra (pollo, pescado, legumbres), granos enteros y abundante agua. Reducir azúcares refinados, frituras y comida ultraprocesada. Planificar el menú semanal en familia ayuda a mantener hábitos consistentes.</p>`;
+  document.getElementById('saludContainer').appendChild(alimentacionCard);
 }
+window.toggleCumplimientoExamen = async function(miembroId, tipo){
+  const anioActual = new Date().getFullYear();
+  const key = miembroId+'_'+tipo+'_'+anioActual;
+  const existente = DATA.saludCumplimiento.find(x=>x.key===key);
+  if(existente){
+    await borrarDoc('saludCumplimiento', existente.id);
+    DATA.saludCumplimiento = DATA.saludCumplimiento.filter(x=>x!==existente);
+  } else {
+    const item = {key, miembroId, tipo, anio:anioActual};
+    item.id = await guardarDoc('saludCumplimiento', item);
+    DATA.saludCumplimiento.push(item);
+  }
+  renderSaludMiembros();
+}
+function renderCitasManuales(){
+  const anioActual = new Date().getFullYear();
+  document.getElementById('citasManualesContainer').innerHTML = DATA.saludCitasManual.map(c=>{
+    const anioInicio = c.fechaInicio? new Date(c.fechaInicio+'T00:00:00').getFullYear() : anioActual;
+    const anios=[]; for(let a=anioInicio; a<=anioActual; a++) anios.push(a);
+    return `<div style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <b>${c.titulo}</b> <span class="pill">${c.frecuencia}</span> ${nombreFamilia(c.familiaId)!=='(sin grupo)'?`<span class="pill gold">${nombreFamilia(c.familiaId)}</span>`:''}
+        ${isAdmin()?`<a href="#" class="no-print" onclick="eliminarCitaManual('${c.id}');return false;" style="color:var(--danger);font-size:12px">eliminar</a>`:''}
+      </div>
+      ${c.frecuencia==='Mensual'? anios.map(anio=>`
+        <table style="margin-top:6px"><tr><th style="width:60px">${anio}</th>${MESES_ES.map(m=>`<th>${m}</th>`).join('')}</tr>
+        <tr><td class="muted">Estado</td>${MESES_ES.map((m,i)=>{
+          const key=c.id+'_'+anio+'_'+i;
+          const esFuturo = (anio===anioActual && i>new Date().getMonth()) || anio>anioActual;
+          const hecho = !!DATA.saludCumplimiento.find(x=>x.key===key);
+          return `<td style="text-align:center">${esFuturo? '<span class="muted">·</span>' : `<span class="semaforo ${hecho?'verde':'gris'}" onclick="toggleCitaManual('${c.id}','${key}')"></span>`}</td>`;
+        }).join('')}</tr></table>`).join('')
+      : `<table style="margin-top:6px"><tr>${anios.map(a=>`<th>${a}</th>`).join('')}</tr>
+         <tr>${anios.map(anio=>{
+           const key=c.id+'_'+anio;
+           const esFuturo = anio>anioActual;
+           const hecho = !!DATA.saludCumplimiento.find(x=>x.key===key);
+           return `<td style="text-align:center">${esFuturo? '<span class="muted">·</span>' : `<span class="semaforo ${hecho?'verde':'gris'}" onclick="toggleCitaManual('${c.id}','${key}')"></span>`}</td>`;
+         }).join('')}</tr></table>`}
+    </div>`;
+  }).join('') || '<p class="muted">Sin citas manuales registradas.</p>';
+}
+window.abrirFormCitaManual = function(){
+  if(!requireAdmin()) return;
+  openModal('Nueva cita mensual/anual del grupo familiar', `
+    <label>Título</label><input name="titulo" required placeholder="Ej: Control dental, chequeo general...">
+    <label>Frecuencia</label><select name="frecuencia">${opciones(['Mensual','Anual'])}</select>
+    <label>Grupo familiar (opcional, deja vacío si aplica a todos)</label><select name="familiaId">${opcionesFamilias()}</select>
+    <label>Fecha desde la que se lleva el registro</label><input type="date" name="fechaInicio" required value="${new Date().toISOString().slice(0,10)}">`,
+    async (fd)=>{
+      const item={titulo:fd.get('titulo'), frecuencia:fd.get('frecuencia'), familiaId:fd.get('familiaId'), fechaInicio:fd.get('fechaInicio')};
+      item.id = await guardarDoc('saludCitasManual', item);
+      DATA.saludCitasManual.push(item);
+      renderCitasManuales();
+    });
+};
+window.eliminarCitaManual = async function(id){
+  if(!requireAdmin()) return;
+  if(!confirm('¿Eliminar esta cita y su checklist de cumplimiento?')) return;
+  await borrarDoc('saludCitasManual', id);
+  DATA.saludCitasManual = DATA.saludCitasManual.filter(c=>c.id!==id);
+  const relacionados = DATA.saludCumplimiento.filter(x=>x.key && x.key.startsWith(id+'_'));
+  for(const r of relacionados){ await borrarDoc('saludCumplimiento', r.id); }
+  DATA.saludCumplimiento = DATA.saludCumplimiento.filter(x=>!(x.key && x.key.startsWith(id+'_')));
+  renderCitasManuales();
+};
+window.toggleCitaManual = async function(citaId, key){
+  if(!requireAdmin()) return;
+  const existente = DATA.saludCumplimiento.find(x=>x.key===key);
+  if(existente){
+    await borrarDoc('saludCumplimiento', existente.id);
+    DATA.saludCumplimiento = DATA.saludCumplimiento.filter(x=>x!==existente);
+  } else {
+    const item = {key, citaId};
+    item.id = await guardarDoc('saludCumplimiento', item);
+    DATA.saludCumplimiento.push(item);
+  }
+  renderCitasManuales();
+};
 window.abrirFormSalud = function(){
   if(!requireAdmin()) return;
   openModal('Nuevo registro de salud', `
@@ -1087,7 +1300,88 @@ window.asignarAlAzar = async function(){
 };
 
 /* =========================================================================
-   14) GESTIÓN DE ACCESOS (solo admin) — crea usuario+contraseña y su perfil en Firestore automáticamente
+   14) REUNIONES — actas, asistentes y acuerdos registrados como compromisos
+   ========================================================================= */
+function renderReuniones(){
+  document.getElementById('content').innerHTML = `
+  ${topbar('Reuniones', 'Actas de reunión, asistentes y acuerdos registrados como compromisos', '<button class="btn" onclick="abrirFormReunion()">+ Nueva acta de reunión</button>')}
+  <div id="reunionesContainer"></div>`;
+  const ordenadas = [...DATA.reuniones].sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||''));
+  document.getElementById('reunionesContainer').innerHTML = ordenadas.map(r=>{
+    const asistentesNombres = (r.asistentes||[]).map(id=>(DATA.miembros.find(m=>m.id===id)||{}).nombre).filter(Boolean);
+    const compromisos = DATA.compromisos.filter(c=>c.reunionId===r.id);
+    const cumplidos = compromisos.filter(c=>c.estado==='cumplido').length;
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3>📝 ${r.titulo}</h3>
+        ${isAdmin()?`<button class="btn small danger no-print" onclick="eliminarReunion('${r.id}')">Eliminar acta</button>`:''}
+      </div>
+      <p class="muted">${r.fecha? fmtFecha(r.fecha)+' de '+new Date(r.fecha+'T00:00:00').getFullYear() : '—'} ${r.lugar? '· '+r.lugar : ''}</p>
+      <p><b>Asistentes (${asistentesNombres.length}):</b> ${asistentesNombres.join(', ')||'—'}</p>
+      ${r.notas? `<p><b>Notas del acta:</b> ${r.notas}</p>`:''}
+      <h4 style="margin-top:12px;font-size:14px">✅ Acuerdos / Compromisos ${compromisos.length? `(${cumplidos}/${compromisos.length} cumplidos)`:''}</h4>
+      <table><tr><th>Acuerdo</th><th>Responsable</th><th>Fecha límite</th><th style="width:90px">Estado</th>${isAdmin()?'<th></th>':''}</tr>
+      ${compromisos.map(c=>{
+        const resp = DATA.miembros.find(m=>m.id===c.responsableId);
+        return `<tr><td>${c.texto}</td><td>${resp?resp.nombre:'—'}</td><td>${c.fechaLimite||'—'}</td>
+          <td style="text-align:center">${isAdmin()?`<button class="btn small ${c.estado==='cumplido'?'':'secondary'}" onclick="toggleCompromiso('${c.id}')">${c.estado==='cumplido'?'✅ Cumplido':'⏳ Pendiente'}</button>`:`<span class="pill ${c.estado==='cumplido'?'verde':'gold'}">${c.estado==='cumplido'?'Cumplido':'Pendiente'}</span>`}</td>
+          ${isAdmin()?`<td><button class="btn small danger" onclick="eliminarCompromiso('${c.id}')">✕</button></td>`:''}</tr>`;
+      }).join('') || `<tr><td colspan="5" class="muted">Sin acuerdos registrados.</td></tr>`}
+      </table>
+      <div class="no-print" style="margin-top:8px"><button class="btn small secondary" onclick="abrirFormCompromiso('${r.id}')">+ Agregar acuerdo</button></div>
+    </div>`;
+  }).join('') || '<p class="muted">Sin actas de reunión registradas aún.</p>';
+}
+window.abrirFormReunion = function(){
+  openModal('Nueva acta de reunión', `
+    <label>Título de la reunión</label><input name="titulo" required placeholder="Ej: Reunión familiar de planificación">
+    <label>Fecha</label><input type="date" name="fecha" required value="${new Date().toISOString().slice(0,10)}">
+    <label>Lugar</label><input name="lugar">
+    <label>Asistentes</label>
+    <select name="asistentes" multiple size="${Math.min(DATA.miembros.length||1,6)}">${DATA.miembros.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}</select>
+    <p class="muted" style="font-size:11.5px">Mantén presionado Ctrl (o Cmd en Mac) para seleccionar varios.</p>
+    <label>Notas del acta (opcional)</label><textarea name="notas" rows="3"></textarea>`,
+    async (fd)=>{
+      const asistentes = Array.from(document.querySelector('select[name=asistentes]').selectedOptions).map(o=>o.value);
+      const item={titulo:fd.get('titulo'), fecha:fd.get('fecha'), lugar:fd.get('lugar'), asistentes, notas:fd.get('notas')};
+      item.id = await guardarDoc('reuniones', item);
+      DATA.reuniones.push(item);
+      render('reuniones');
+    });
+};
+window.eliminarReunion = async function(id){
+  if(!requireAdmin()) return;
+  if(!confirm('¿Eliminar esta acta de reunión y todos sus compromisos asociados?')) return;
+  await borrarDoc('reuniones', id);
+  DATA.reuniones = DATA.reuniones.filter(r=>r.id!==id);
+  const relacionados = DATA.compromisos.filter(c=>c.reunionId===id);
+  for(const c of relacionados){ await borrarDoc('compromisos', c.id); }
+  DATA.compromisos = DATA.compromisos.filter(c=>c.reunionId!==id);
+  render('reuniones');
+};
+window.abrirFormCompromiso = function(reunionId){
+  openModal('Nuevo acuerdo / compromiso', `
+    <label>Acuerdo</label><textarea name="texto" rows="2" required placeholder="Ej: Cotizar el seguro vehicular antes de fin de mes"></textarea>
+    <label>Responsable</label><select name="responsableId">${DATA.miembros.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}</select>
+    <label>Fecha límite</label><input type="date" name="fechaLimite">`,
+    async (fd)=>{
+      const item={reunionId, texto:fd.get('texto'), responsableId:fd.get('responsableId'), fechaLimite:fd.get('fechaLimite'), estado:'pendiente'};
+      item.id = await guardarDoc('compromisos', item);
+      DATA.compromisos.push(item);
+      render('reuniones');
+    });
+};
+window.eliminarCompromiso = async function(id){ if(!requireAdmin())return; await borrarDoc('compromisos', id); DATA.compromisos=DATA.compromisos.filter(c=>c.id!==id); render('reuniones'); };
+window.toggleCompromiso = async function(id){
+  if(!requireAdmin()) return;
+  const c = DATA.compromisos.find(x=>x.id===id);
+  c.estado = c.estado==='cumplido' ? 'pendiente' : 'cumplido';
+  await guardarDoc('compromisos', c);
+  render('reuniones');
+};
+
+/* =========================================================================
+   15) GESTIÓN DE ACCESOS (solo admin) — crea usuario+contraseña y su perfil en Firestore automáticamente
    ========================================================================= */
 let LISTA_ACCESOS = [];
 async function cargarAccesos(){
