@@ -81,8 +81,10 @@ td{padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:top}
   main#content{margin-left:0}
   body{background:#fff}
   body::before{content:"Plan Familiar Integral — Informe ejecutivo generado el " attr(data-print-date); display:block; font-size:10.5px; color:#666; margin-bottom:14px; border-bottom:1px solid #ddd; padding-bottom:8px;}
-  .card{page-break-inside:avoid; border:1px solid #ddd !important; box-shadow:none !important; break-inside:avoid;}
-  table{page-break-inside:avoid}
+  .card{border:1px solid #ddd !important; box-shadow:none !important;}
+  table{border-collapse:collapse}
+  tr{page-break-inside:avoid; break-inside:avoid}
+  h3,h4{page-break-after:avoid; break-after:avoid}
   h1{border-bottom:2px solid #1b2a4a;padding-bottom:8px}
   .verse-box{background:#1b2a4a !important; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
   .pill{-webkit-print-color-adjust:exact; print-color-adjust:exact;}

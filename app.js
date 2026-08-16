@@ -364,10 +364,11 @@ function imprimirSeccion(sourceEl, titulo){
   w.document.write(`<html><head><title>${titulo}</title><meta charset="utf-8"><style>
     body{font-family:'Segoe UI',Arial,sans-serif;color:#1e2430;padding:28px}
     h1{font-family:Georgia,serif;color:#1b2a4a;border-bottom:2px solid #1b2a4a;padding-bottom:8px} h3,h4{font-family:Georgia,serif;color:#1b2a4a}
-    table{border-collapse:collapse;width:100%;margin-bottom:16px;page-break-inside:avoid} th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}
+    table{border-collapse:collapse;width:100%;margin-bottom:16px} th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}
+    tr{page-break-inside:avoid}
     th{background:#f0f2f6}
     .pill{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold;background:#e6f6f6;color:#0e8f8f;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .card{margin-bottom:16px;page-break-inside:avoid}
+    .card{margin-bottom:16px}
     .muted{color:#6b7280}
   </style></head><body>
   <h1>Plan Familiar Integral — ${titulo}</h1>
