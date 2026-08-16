@@ -194,6 +194,7 @@ function recomendacionViaje(){
 
 const MESES_ES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const TEMAS_DELEGACION = ["Seguridad","Cumpleaños","Fondos de contingencia","Seguros","Teléfonos de contacto","Estructuras","Diversión","Salud","Ideas"];
+const SIMBOLO_SEMAFORO = {verde:'✔', rojo:'✘', amarillo:'●', gris:'–'};
 
 // ---------- Utilidades ----------
 function uid(){ return 'id_'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
@@ -329,12 +330,16 @@ function render(view){
   (renderers[view]||renderDashboard)();
 }
 
+function imprimirPagina(){
+  document.body.setAttribute('data-print-date', new Date().toLocaleDateString('es-EC',{day:'2-digit',month:'long',year:'numeric'}));
+  window.print();
+}
 function topbar(titulo, subtitulo, extraBtnsHtml){
   const tituloSafe = String(titulo).replace(/'/g,"");
   return `<header class="topbar">
     <div><h1>${titulo}</h1><p class="muted">${subtitulo||''}</p></div>
     <div class="toolbar no-print">${extraBtnsHtml||''}
-      <button class="btn secondary" onclick="window.print()">🖨️ PDF</button>
+      <button class="btn secondary" onclick="imprimirPagina()">🖨️ PDF</button>
       <button class="btn secondary" onclick="descargarWord('${tituloSafe}')">📝 Word</button>
       <button class="btn secondary" onclick="descargarExcel('${tituloSafe}')">📊 Excel</button>
     </div>
@@ -358,16 +363,15 @@ function imprimirSeccion(sourceEl, titulo){
   if(!w){ alert('Habilita las ventanas emergentes para poder imprimir este informe.'); return; }
   w.document.write(`<html><head><title>${titulo}</title><meta charset="utf-8"><style>
     body{font-family:'Segoe UI',Arial,sans-serif;color:#1e2430;padding:28px}
-    h1{font-family:Georgia,serif;color:#1b2a4a} h3,h4{font-family:Georgia,serif;color:#1b2a4a}
-    table{border-collapse:collapse;width:100%;margin-bottom:16px} th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}
+    h1{font-family:Georgia,serif;color:#1b2a4a;border-bottom:2px solid #1b2a4a;padding-bottom:8px} h3,h4{font-family:Georgia,serif;color:#1b2a4a}
+    table{border-collapse:collapse;width:100%;margin-bottom:16px;page-break-inside:avoid} th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}
     th{background:#f0f2f6}
-    .pill{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold;background:#e6f6f6;color:#0e8f8f}
-    .card{margin-bottom:16px}
+    .pill{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold;background:#e6f6f6;color:#0e8f8f;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .card{margin-bottom:16px;page-break-inside:avoid}
     .muted{color:#6b7280}
   </style></head><body>
   <h1>Plan Familiar Integral — ${titulo}</h1>
   <p class="muted">Informe ejecutivo generado el ${new Date().toLocaleDateString('es-EC',{day:'2-digit',month:'long',year:'numeric'})}</p>
-  <hr>
   ${clone.innerHTML}
   </body></html>`);
   w.document.close();
@@ -692,7 +696,7 @@ function renderPlanCard(p){
           const estado = c? c.estado : 'gris';
           const texto = {gris:'Sin evaluar', rojo:'No cumple', amarillo:'Cumple parcial', verde:'Cumple'}[estado];
           return `<tr><td>${f.nombre}</td><td style="text-align:center">
-            <span class="semaforo ${estado}" title="${texto}" ${isAdmin()?`onclick="cicloCumplimientoSeguridad('${it.id}','${f.id}')"`:''}></span>
+            <span class="semaforo ${estado}" title="${texto}" ${isAdmin()?`onclick="cicloCumplimientoSeguridad('${it.id}','${f.id}')"`:''}>${SIMBOLO_SEMAFORO[estado]||'–'}</span>
             <span class="muted" style="font-size:11px;display:block">${texto}</span>
           </td></tr>`;
         }).join('')}
@@ -1183,7 +1187,7 @@ function renderPlanificacionCard(p){
       const ap = presupuestoAportes[f.id]||{entregado:false, responsableId:''};
       return `<tr><td>${f.nombre}</td><td>${money(montoPorGrupo)}</td>
         <td>${isAdmin()?`<select onchange="asignarResponsableGrupoPresupuesto('${p.id}','${f.id}', this.value)"><option value="">— elegir —</option>${DATA.miembros.map(m=>`<option value="${m.id}" ${ap.responsableId===m.id?'selected':''}>${m.nombre}</option>`).join('')}</select>` : ((DATA.miembros.find(m=>m.id===ap.responsableId)||{}).nombre||'—')}</td>
-        <td style="text-align:center"><span class="semaforo ${ap.entregado?'verde':'gris'}" title="${ap.entregado?'Entregado':'No entregado'}" ${isAdmin()?`onclick="toggleEntregadoGrupoPresupuesto('${p.id}','${f.id}')"`:''}></span></td></tr>`;
+        <td style="text-align:center"><span class="semaforo ${ap.entregado?'verde':'gris'}" title="${ap.entregado?'Entregado':'No entregado'}" ${isAdmin()?`onclick="toggleEntregadoGrupoPresupuesto('${p.id}','${f.id}')"`:''}>${ap.entregado?SIMBOLO_SEMAFORO.verde:SIMBOLO_SEMAFORO.gris}</span></td></tr>`;
     }).join('')}
     </table>` : '<p class="muted">Registra grupos familiares en "Grupo familiar" para dividir el presupuesto.</p>'}
 
@@ -1379,7 +1383,7 @@ function renderSaludMiembros(){
         const key = m.id+'_'+c.tipo+'_'+anioActual;
         const hecho = !!DATA.saludCumplimiento.find(x=>x.key===key);
         return `<tr><td>${c.tipo}</td><td>${c.frecuencia}</td><td style="text-align:center">
-          <span class="semaforo ${hecho?'verde':'gris'}" title="${hecho?'Realizado':'Pendiente'}" onclick="toggleCumplimientoExamen('${m.id}','${c.tipo.replace(/'/g,"")}')"></span>
+          <span class="semaforo ${hecho?'verde':'gris'}" title="${hecho?'Realizado':'Pendiente'}" onclick="toggleCumplimientoExamen('${m.id}','${c.tipo.replace(/'/g,"")}')">${hecho?SIMBOLO_SEMAFORO.verde:SIMBOLO_SEMAFORO.gris}</span>
         </td></tr>`;
       }).join('')}
       </table>
@@ -1422,14 +1426,14 @@ function renderCitasManuales(){
           const key=c.id+'_'+anio+'_'+i;
           const esFuturo = (anio===anioActual && i>new Date().getMonth()) || anio>anioActual;
           const hecho = !!DATA.saludCumplimiento.find(x=>x.key===key);
-          return `<td style="text-align:center">${esFuturo? '<span class="muted">·</span>' : `<span class="semaforo ${hecho?'verde':'gris'}" onclick="toggleCitaManual('${c.id}','${key}')"></span>`}</td>`;
+          return `<td style="text-align:center">${esFuturo? '<span class="muted">·</span>' : `<span class="semaforo ${hecho?'verde':'gris'}" title="${hecho?'Realizado':'Pendiente'}" onclick="toggleCitaManual('${c.id}','${key}')">${hecho?SIMBOLO_SEMAFORO.verde:SIMBOLO_SEMAFORO.gris}</span>`}</td>`;
         }).join('')}</tr></table>`).join('')
       : `<table style="margin-top:6px"><tr>${anios.map(a=>`<th>${a}</th>`).join('')}</tr>
          <tr>${anios.map(anio=>{
            const key=c.id+'_'+anio;
            const esFuturo = anio>anioActual;
            const hecho = !!DATA.saludCumplimiento.find(x=>x.key===key);
-           return `<td style="text-align:center">${esFuturo? '<span class="muted">·</span>' : `<span class="semaforo ${hecho?'verde':'gris'}" onclick="toggleCitaManual('${c.id}','${key}')"></span>`}</td>`;
+           return `<td style="text-align:center">${esFuturo? '<span class="muted">·</span>' : `<span class="semaforo ${hecho?'verde':'gris'}" title="${hecho?'Realizado':'Pendiente'}" onclick="toggleCitaManual('${c.id}','${key}')">${hecho?SIMBOLO_SEMAFORO.verde:SIMBOLO_SEMAFORO.gris}</span>`}</td>`;
          }).join('')}</tr></table>`}
     </div>`;
   }).join('') || '<p class="muted">Sin citas manuales registradas.</p>';
@@ -1648,14 +1652,14 @@ function renderReunionCard(r){
       <h3>📝 ${r.titulo}</h3>
       <div class="no-print">${isAdmin()?`<button class="btn small secondary" onclick="abrirFormReunion('${r.id}')">Editar acta</button> <button class="btn small danger" onclick="eliminarReunion('${r.id}')">Eliminar acta</button>`:''}</div>
     </div>
-    <p class="muted">${r.fecha? fmtFecha(r.fecha)+' de '+new Date(r.fecha+'T00:00:00').getFullYear() : '—'} ${r.lugar? '· '+r.lugar : ''}</p>
+    <p class="muted">${r.fecha? fmtFecha(r.fecha)+' de '+new Date(r.fecha+'T00:00:00').getFullYear() : '—'} ${r.hora? '· '+r.hora:''} ${r.lugar? '· '+r.lugar : ''} ${r.modalidad? `· <span class="pill">${r.modalidad}</span>`:''}</p>
     ${r.notas? `<p><b>Notas del acta:</b> ${r.notas}</p>`:''}
 
     <h4 style="margin-top:14px;font-size:14px">✅ Checklist de asistencia</h4>
     <table><tr><th>Miembro</th><th style="width:100px">¿Asistió?</th></tr>
     ${DATA.miembros.map(m=>{
       const asistio = !!asistencia[m.id];
-      return `<tr><td>${m.nombre}</td><td style="text-align:center"><span class="semaforo ${asistio?'verde':'gris'}" title="${asistio?'Asistió':'No registrado'}" ${isAdmin()?`onclick="toggleAsistencia('${r.id}','${m.id}')"`:''}></span></td></tr>`;
+      return `<tr><td>${m.nombre}</td><td style="text-align:center"><span class="semaforo ${asistio?'verde':'gris'}" title="${asistio?'Asistió':'No registrado'}" ${isAdmin()?`onclick="toggleAsistencia('${r.id}','${m.id}')"`:''}>${asistio?SIMBOLO_SEMAFORO.verde:SIMBOLO_SEMAFORO.gris}</span></td></tr>`;
     }).join('') || `<tr><td colspan="2" class="muted">Registra miembros primero.</td></tr>`}
     </table>
 
@@ -1673,42 +1677,91 @@ function renderReunionCard(r){
     </table>
     <div class="no-print" style="margin-top:8px"><button class="btn small secondary" onclick="abrirFormCompromiso('${r.id}')">+ Agregar acuerdo</button></div>
 
-    <h4 style="margin-top:16px;font-size:14px">🔁 Puntos pendientes — compromiso de asistencia a la próxima reunión</h4>
-    ${isAdmin()?`<div class="no-print" style="margin-bottom:8px"><button class="btn small secondary" onclick="configurarProximaReunion('${r.id}')">📅 Configurar próxima reunión</button></div>`:''}
-    ${r.proximaReunionFecha? `<p class="muted">Próxima reunión: <b>${fmtFecha(r.proximaReunionFecha)} de ${new Date(r.proximaReunionFecha+'T00:00:00').getFullYear()}</b></p>
-      <table><tr><th>Miembro</th><th style="width:140px">Compromiso de asistencia</th></tr>
+    <h4 style="margin-top:16px;font-size:14px">🔁 Puntos pendientes — próxima reunión</h4>
+    ${r.proximaReunionFecha? `<div class="card" style="background:#e5f6ec;margin-bottom:10px">
+      <b>✅ Próxima reunión confirmada:</b> ${fmtFecha(r.proximaReunionFecha)} de ${new Date(r.proximaReunionFecha+'T00:00:00').getFullYear()} ${r.proximaReunionHora?'· '+r.proximaReunionHora:''} ${r.proximaReunionModalidad?'· '+r.proximaReunionModalidad:''}
+    </div>` : ''}
+
+    <h5 style="font-size:13px;margin-bottom:4px">📅 Propuestas de fecha y hora</h5>
+    ${(r.propuestasProximaReunion||[]).map(pr=>{
+      const proponente = DATA.miembros.find(m=>m.id===pr.propuestoPorId);
+      const acuerdos = pr.acuerdos||{};
+      const totalMiembros = DATA.miembros.length;
+      const aFavor = Object.values(acuerdos).filter(Boolean).length;
+      const esGanadora = r.proximaReunionFecha===pr.fecha && r.proximaReunionHora===pr.hora && r.proximaReunionModalidad===pr.modalidad;
+      return `<div class="card" style="margin-bottom:8px;background:#fafbfd">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b>${fmtFecha(pr.fecha)} de ${new Date(pr.fecha+'T00:00:00').getFullYear()} ${pr.hora?'· '+pr.hora:''}</b>
+          ${esGanadora?'<span class="pill verde">✅ Ganadora (mayoría)</span>':''}
+        </div>
+        <p class="muted">Modalidad: ${pr.modalidad||'—'} · Propuesta por: ${proponente?proponente.nombre:'—'} · ${aFavor}/${totalMiembros} de acuerdo</p>
+        <table><tr><th>Miembro</th><th style="width:90px">¿De acuerdo?</th></tr>
+        ${DATA.miembros.map(m=>{
+          const ok = !!acuerdos[m.id];
+          return `<tr><td>${m.nombre}</td><td style="text-align:center"><span class="semaforo ${ok?'verde':'gris'}" title="${ok?'De acuerdo':'Sin confirmar'}" ${isAdmin()?`onclick="cicloAcuerdoPropuesta('${r.id}','${pr.id}','${m.id}')"`:''}>${ok?SIMBOLO_SEMAFORO.verde:SIMBOLO_SEMAFORO.gris}</span></td></tr>`;
+        }).join('')}
+        </table>
+        ${isAdmin()?`<div class="no-print" style="margin-top:6px"><button class="btn small danger" onclick="eliminarPropuestaProximaReunion('${r.id}','${pr.id}')">Eliminar propuesta</button></div>`:''}
+      </div>`;
+    }).join('') || '<p class="muted">Sin propuestas registradas.</p>'}
+    <div class="no-print" style="margin-bottom:8px"><button class="btn small secondary" onclick="abrirFormPropuestaProximaReunion('${r.id}')">+ Nueva propuesta de fecha/hora</button> ${isAdmin()?`<button class="btn small secondary" onclick="configurarProximaReunion('${r.id}')">Configurar manualmente</button>`:''}</div>
+
+    ${r.proximaReunionFecha? `<table><tr><th>Miembro</th><th style="width:140px">Compromiso de asistencia</th></tr>
       ${DATA.miembros.map(m=>{
         const c = compromisoProxima[m.id]||'sin_confirmar';
         const txt = {si:'✅ Confirmado', no:'❌ No asistirá', sin_confirmar:'Sin confirmar'}[c];
         const cls = {si:'verde', no:'danger', sin_confirmar:'gold'}[c];
         return `<tr><td>${m.nombre}</td><td style="text-align:center">${isAdmin()?`<button class="btn small secondary" style="padding:3px 6px" onclick="cicloCompromisoProxima('${r.id}','${m.id}')"><span class="pill ${cls}">${txt}</span></button>`:`<span class="pill ${cls}">${txt}</span>`}</td></tr>`;
       }).join('')}
-      </table>` : '<p class="muted">No se ha programado una próxima reunión para dar seguimiento a puntos pendientes.</p>'}
+      </table>` : ''}
   </div>`;
 }
-window.toggleAsistencia = async function(reunionId, miembroId){
+window.abrirFormPropuestaProximaReunion = function(reunionId){
+  const r = DATA.reuniones.find(x=>x.id===reunionId);
+  openModal('Nueva propuesta de fecha y hora', `
+    <label>Fecha propuesta</label><input type="date" name="fecha" required>
+    <label>Hora propuesta</label><input type="time" name="hora">
+    <label>Modalidad</label><select name="modalidad">${opciones(['Física','Virtual'])}</select>
+    <label>¿Quién propone?</label><select name="propuestoPorId">${DATA.miembros.map(m=>`<option value="${m.id}" ${m.id===CURRENT_USER.miembroId?'selected':''}>${m.nombre}</option>`).join('')}</select>`,
+    async (fd)=>{
+      r.propuestasProximaReunion = r.propuestasProximaReunion||[];
+      r.propuestasProximaReunion.push({id:uid(), fecha:fd.get('fecha'), hora:fd.get('hora'), modalidad:fd.get('modalidad'), propuestoPorId:fd.get('propuestoPorId'), acuerdos:{}});
+      await guardarDoc('reuniones', r);
+      render('reuniones');
+    });
+};
+window.eliminarPropuestaProximaReunion = async function(reunionId, propuestaId){
   if(!requireAdmin()) return;
   const r = DATA.reuniones.find(x=>x.id===reunionId);
-  r.asistencia = r.asistencia||{};
-  r.asistencia[miembroId] = !r.asistencia[miembroId];
+  r.propuestasProximaReunion = (r.propuestasProximaReunion||[]).filter(pr=>pr.id!==propuestaId);
   await guardarDoc('reuniones', r);
   render('reuniones');
 };
-window.cicloAprobacion = async function(compromisoId){
+window.cicloAcuerdoPropuesta = async function(reunionId, propuestaId, miembroId){
   if(!requireAdmin()) return;
-  const orden=['pendiente','aprobado','rechazado'];
-  const c = DATA.compromisos.find(x=>x.id===compromisoId);
-  c.aprobacion = orden[(orden.indexOf(c.aprobacion||'pendiente')+1)%orden.length];
-  await guardarDoc('compromisos', c);
+  const r = DATA.reuniones.find(x=>x.id===reunionId);
+  const pr = (r.propuestasProximaReunion||[]).find(x=>x.id===propuestaId);
+  pr.acuerdos = pr.acuerdos||{};
+  pr.acuerdos[miembroId] = !pr.acuerdos[miembroId];
+  const total = DATA.miembros.length;
+  const aFavor = Object.values(pr.acuerdos).filter(Boolean).length;
+  if(total>0 && aFavor > total/2){
+    r.proximaReunionFecha = pr.fecha; r.proximaReunionHora = pr.hora; r.proximaReunionModalidad = pr.modalidad;
+  }
+  await guardarDoc('reuniones', r);
   render('reuniones');
 };
 window.configurarProximaReunion = function(reunionId){
   if(!requireAdmin()) return;
   const r = DATA.reuniones.find(x=>x.id===reunionId);
-  openModal('Configurar próxima reunión', `
-    <label>Fecha de la próxima reunión</label><input type="date" name="fecha" required value="${r.proximaReunionFecha||''}">`,
+  openModal('Configurar próxima reunión manualmente', `
+    <label>Fecha de la próxima reunión</label><input type="date" name="fecha" required value="${r.proximaReunionFecha||''}">
+    <label>Hora</label><input type="time" name="hora" value="${r.proximaReunionHora||''}">
+    <label>Modalidad</label><select name="modalidad">${opciones(['Física','Virtual'], r.proximaReunionModalidad)}</select>`,
     async (fd)=>{
       r.proximaReunionFecha = fd.get('fecha');
+      r.proximaReunionHora = fd.get('hora');
+      r.proximaReunionModalidad = fd.get('modalidad');
       r.compromisoProxima = r.compromisoProxima||{};
       await guardarDoc('reuniones', r);
       render('reuniones');
@@ -1726,19 +1779,41 @@ window.cicloCompromisoProxima = async function(reunionId, miembroId){
 };
 window.abrirFormReunion = function(id){
   if(id && !requireAdmin()) return;
-  const r = id? DATA.reuniones.find(x=>x.id===id) : {asistencia:{}, compromisoProxima:{}};
+  const r = id? DATA.reuniones.find(x=>x.id===id) : {asistencia:{}, compromisoProxima:{}, propuestasProximaReunion:[]};
   openModal(id?'Editar acta de reunión':'Nueva acta de reunión', `
     <label>Título de la reunión</label><input name="titulo" required placeholder="Ej: Reunión familiar de planificación" value="${r.titulo||''}">
-    <label>Fecha</label><input type="date" name="fecha" required value="${r.fecha||new Date().toISOString().slice(0,10)}">
+    <div class="grid cols-2">
+    <div><label>Fecha</label><input type="date" name="fecha" required value="${r.fecha||new Date().toISOString().slice(0,10)}"></div>
+    <div><label>Hora</label><input type="time" name="hora" value="${r.hora||''}"></div>
+    </div>
+    <label>Modalidad</label><select name="modalidad">${opciones(['Física','Virtual'], r.modalidad)}</select>
     <label>Lugar</label><input name="lugar" value="${r.lugar||''}">
     <label>Notas del acta (opcional)</label><textarea name="notas" rows="3">${r.notas||''}</textarea>
     <p class="muted" style="font-size:11.5px">La asistencia se marca con el checklist dentro del acta, una vez guardada.</p>`,
     async (fd)=>{
-      const item={id, titulo:fd.get('titulo'), fecha:fd.get('fecha'), lugar:fd.get('lugar'), notas:fd.get('notas'), asistencia:r.asistencia||{}, proximaReunionFecha:r.proximaReunionFecha||'', compromisoProxima:r.compromisoProxima||{}};
+      const item={id, titulo:fd.get('titulo'), fecha:fd.get('fecha'), hora:fd.get('hora'), modalidad:fd.get('modalidad'), lugar:fd.get('lugar'), notas:fd.get('notas'),
+        asistencia:r.asistencia||{}, proximaReunionFecha:r.proximaReunionFecha||'', proximaReunionHora:r.proximaReunionHora||'', proximaReunionModalidad:r.proximaReunionModalidad||'',
+        compromisoProxima:r.compromisoProxima||{}, propuestasProximaReunion:r.propuestasProximaReunion||[]};
       const newId = await guardarDoc('reuniones', item);
       if(!id){ item.id=newId; DATA.reuniones.push(item); } else { Object.assign(r, item); }
       render('reuniones');
     });
+};
+window.toggleAsistencia = async function(reunionId, miembroId){
+  if(!requireAdmin()) return;
+  const r = DATA.reuniones.find(x=>x.id===reunionId);
+  r.asistencia = r.asistencia||{};
+  r.asistencia[miembroId] = !r.asistencia[miembroId];
+  await guardarDoc('reuniones', r);
+  render('reuniones');
+};
+window.cicloAprobacion = async function(compromisoId){
+  if(!requireAdmin()) return;
+  const orden=['pendiente','aprobado','rechazado'];
+  const c = DATA.compromisos.find(x=>x.id===compromisoId);
+  c.aprobacion = orden[(orden.indexOf(c.aprobacion||'pendiente')+1)%orden.length];
+  await guardarDoc('compromisos', c);
+  render('reuniones');
 };
 window.eliminarReunion = async function(id){
   if(!requireAdmin()) return;

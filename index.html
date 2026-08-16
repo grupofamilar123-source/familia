@@ -34,11 +34,11 @@ label{font-size:12.5px;color:var(--muted);font-weight:600;display:block;margin:1
 .pill.gold{background:#fbf1de;color:#9a721f}
 .pill.danger{background:#fbeaea;color:var(--danger)}
 .pill.verde{background:#e5f6ec;color:var(--ok)}
-.semaforo{display:inline-block;width:16px;height:16px;border-radius:50%;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 1px var(--border)}
+.semaforo{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 1px var(--border);font-size:10px;font-weight:900;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .semaforo.rojo{background:var(--danger)}
 .semaforo.amarillo{background:#e0a92e}
 .semaforo.verde{background:var(--ok)}
-.semaforo.gris{background:#d8dce3}
+.semaforo.gris{background:#d8dce3;color:#5b6270}
 .muted{color:var(--muted);font-size:13px}
 .hidden{display:none !important}
 /* ---- Login ---- */
@@ -80,6 +80,12 @@ td{padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:top}
   nav#sidebar,.no-print,header.topbar .toolbar{display:none !important}
   main#content{margin-left:0}
   body{background:#fff}
+  body::before{content:"Plan Familiar Integral — Informe ejecutivo generado el " attr(data-print-date); display:block; font-size:10.5px; color:#666; margin-bottom:14px; border-bottom:1px solid #ddd; padding-bottom:8px;}
+  .card{page-break-inside:avoid; border:1px solid #ddd !important; box-shadow:none !important; break-inside:avoid;}
+  table{page-break-inside:avoid}
+  h1{border-bottom:2px solid #1b2a4a;padding-bottom:8px}
+  .verse-box{background:#1b2a4a !important; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  .pill{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
   .print-only{display:block}
 }
 ::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:#c9cfda;border-radius:8px}
