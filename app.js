@@ -1603,13 +1603,39 @@ window.asignarAlAzar = async function(){
 /* =========================================================================
    14) REUNIONES — actas, asistencia, aprobación de puntos y compromiso de próxima reunión
    ========================================================================= */
+let reunionSeleccionada = null;
 function renderReuniones(){
+  if(reunionSeleccionada && !DATA.reuniones.find(x=>x.id===reunionSeleccionada)) reunionSeleccionada=null;
+
+  if(reunionSeleccionada){
+    const r = DATA.reuniones.find(x=>x.id===reunionSeleccionada);
+    document.getElementById('content').innerHTML =
+      topbar(r.titulo, 'Detalle del acta de reunión', '<button class="btn secondary" onclick="volverListaReuniones()">← Volver a la lista</button>')
+      + renderReunionCard(r);
+    return;
+  }
+
   document.getElementById('content').innerHTML = `
-  ${topbar('Reuniones', 'Actas de reunión, asistencia, acuerdos y aprobación de puntos', '<button class="btn" onclick="abrirFormReunion()">+ Nueva acta de reunión</button>')}
-  <div id="reunionesContainer"></div>`;
-  const ordenadas = [...DATA.reuniones].sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||''));
-  document.getElementById('reunionesContainer').innerHTML = ordenadas.map(r=>renderReunionCard(r)).join('') || '<p class="muted">Sin actas de reunión registradas aún.</p>';
+  ${topbar('Reuniones', 'Selecciona un acta para ver asistencia, acuerdos y aprobación completos', '<button class="btn" onclick="abrirFormReunion()">+ Nueva acta de reunión</button>')}
+  <div class="card"><table><tr><th>Título</th><th>Fecha</th><th>Lugar</th><th>Asistencia</th><th>Acuerdos</th><th></th></tr>
+  ${[...DATA.reuniones].sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')).map(r=>{
+    const asistencia = r.asistencia||{};
+    const asistieron = Object.values(asistencia).filter(Boolean).length;
+    const compromisos = DATA.compromisos.filter(c=>c.reunionId===r.id);
+    const cumplidos = compromisos.filter(c=>c.estado==='cumplido').length;
+    return `<tr style="cursor:pointer" onclick="verDetalleReunion('${r.id}')">
+      <td><b>${r.titulo}</b></td>
+      <td>${r.fecha? fmtFecha(r.fecha)+' '+new Date(r.fecha+'T00:00:00').getFullYear() : '—'}</td>
+      <td>${r.lugar||'—'}</td>
+      <td>${asistieron}/${DATA.miembros.length}</td>
+      <td>${cumplidos}/${compromisos.length}</td>
+      <td class="no-print"><button class="btn small secondary" onclick="event.stopPropagation();verDetalleReunion('${r.id}')">Ver detalle</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="6" class="muted">Sin actas de reunión registradas aún.</td></tr>`}
+  </table></div>`;
 }
+window.verDetalleReunion = function(id){ reunionSeleccionada=id; render('reuniones'); };
+window.volverListaReuniones = function(){ reunionSeleccionada=null; render('reuniones'); };
 function renderReunionCard(r){
   const asistencia = r.asistencia||{};
   const compromisoProxima = r.compromisoProxima||{};
