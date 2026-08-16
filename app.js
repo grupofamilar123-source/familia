@@ -152,6 +152,9 @@ function recomendacionViaje(){
   };
 }
 
+const MESES_ES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const TEMAS_DELEGACION = ["Seguridad","Cumpleaños","Fondos de contingencia","Seguros","Teléfonos de contacto","Estructuras","Diversión","Salud","Ideas"];
+
 // ---------- Utilidades ----------
 function uid(){ return 'id_'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
 function edadDesde(fecha){
@@ -176,8 +179,8 @@ function initials(name){ return (name||'?').split(' ').filter(Boolean).slice(0,2
 
 // ---------- Estado global ----------
 let CURRENT_USER = null;   // {uid, email, rol, miembroId}
-let DATA = { miembros:[], familias:[], planes:[], equipoRevisiones:[], fondos:{aportes:[],gastos:[],convenios:[],banco:'',saldoManual:null},
-             seguros:[], telefonos:[], estructuras:[], diversionPropuestas:[], diversionRespuestas:[], salud:[], ideas:[] };
+let DATA = { miembros:[], familias:[], planes:[], equipoRevisiones:[], fondos:{aportes:[],gastos:[],convenios:[],banco:'',cuotaMensual:null,fechaAcuerdo:'',cumplimientos:{}},
+             seguros:[], telefonos:[], estructuras:[], diversionPropuestas:[], diversionRespuestas:[], salud:[], ideas:[], delegaciones:[] };
 let CURRENT_VIEW = 'dashboard';
 const isAdmin = ()=> CURRENT_USER && CURRENT_USER.rol==='admin';
 
@@ -227,16 +230,17 @@ async function colToArray(name){
 }
 async function cargarTodo(){
   try{
-    const [miembros, familias, planes, equipoRevisiones, seguros, telefonos, estructuras, diversionPropuestas, diversionRespuestas, salud, ideas] =
-      await Promise.all(['miembros','familias','planesSeguridad','revisionesSeguridad','seguros','telefonos','estructuras','diversionPropuestas','diversionRespuestas','salud','ideas'].map(colToArray));
+    const [miembros, familias, planes, equipoRevisiones, seguros, telefonos, estructuras, diversionPropuestas, diversionRespuestas, salud, ideas, delegaciones] =
+      await Promise.all(['miembros','familias','planesSeguridad','revisionesSeguridad','seguros','telefonos','estructuras','diversionPropuestas','diversionRespuestas','salud','ideas','delegaciones'].map(colToArray));
     DATA.miembros=miembros; DATA.familias=familias;
     DATA.planes = planes.length? planes : PLANES_SEED.map(p=>({id:uid(),...p}));
     DATA.equipoRevisiones=equipoRevisiones;
     DATA.seguros=seguros; DATA.telefonos=telefonos; DATA.estructuras=estructuras;
     DATA.diversionPropuestas=diversionPropuestas; DATA.diversionRespuestas=diversionRespuestas;
-    DATA.salud=salud; DATA.ideas=ideas;
+    DATA.salud=salud; DATA.ideas=ideas; DATA.delegaciones=delegaciones;
     const fondosDoc = await db.collection('fondos').doc('main').get();
-    DATA.fondos = fondosDoc.exists? fondosDoc.data() : {aportes:[],gastos:[],convenios:[],banco:''};
+    DATA.fondos = fondosDoc.exists? fondosDoc.data() : {aportes:[],gastos:[],convenios:[],banco:'',cuotaMensual:null,fechaAcuerdo:'',cumplimientos:{}};
+    if(!DATA.fondos.cumplimientos) DATA.fondos.cumplimientos={};
   }catch(err){
     console.warn('Firestore no disponible aún, usando datos de ejemplo locales.', err);
     if(!DATA.planes.length) DATA.planes = PLANES_SEED.map(p=>({id:uid(),...p}));
@@ -269,7 +273,7 @@ function render(view){
     dashboard: renderDashboard, grupo: renderGrupo, seguridad: renderSeguridad, fondos: renderFondos,
     seguros: renderSeguros, telefonos: renderTelefonos, cumpleanos: renderCumpleanos, estructuras: renderEstructuras,
     diversion: renderDiversion, planificacion: renderPlanificacion, salud: renderSalud, ideas: renderIdeas,
-    accesos: renderAccesos
+    delegaciones: renderDelegaciones, accesos: renderAccesos
   };
   (renderers[view]||renderDashboard)();
 }
@@ -415,10 +419,16 @@ function renderFichaMiembro(m){
       <div><b>${m.nombre}</b><br><span class="muted">${m.sexo||'—'} · ${edadDesde(m.fechaNacimiento)} años · ${fmtFecha(m.fechaNacimiento)}</span></div>
     </div>
     <table style="margin-top:10px">
+      <tr><td class="muted">Cédula</td><td>${m.cedula||'—'}</td></tr>
       <tr><td class="muted">Tipo de sangre</td><td>${m.tipoSangre||'—'}</td></tr>
+      <tr><td class="muted">Teléfono fijo</td><td>${m.telefonoFijo||'—'}</td></tr>
+      <tr><td class="muted">Celular</td><td>${m.celular||'—'}</td></tr>
       <tr><td class="muted">Trabajo/estudio</td><td>${m.direccionTrabajo||'—'}</td></tr>
       <tr><td class="muted">Alergias</td><td>${m.alergias||'Ninguna registrada'}</td></tr>
       <tr><td class="muted">Punto de encuentro cercano</td><td>${m.puntoEncuentro||'—'}</td></tr>
+      <tr><td class="muted">Color favorito</td><td>${m.colorFavorito||'—'}</td></tr>
+      <tr><td class="muted">Comida favorita</td><td>${m.comidaFavorita||'—'}</td></tr>
+      <tr><td class="muted">Hobbies</td><td>${m.hobbies||'—'}</td></tr>
     </table>
     ${contactos.length? `<div class="muted" style="margin-top:8px">Teléfonos de contacto:</div>${contactos.map(c=>`<div style="font-size:13px">• ${c.nombre}: ${c.telefono}</div>`).join('')}` : ''}
     ${amigos.length? `<div class="muted" style="margin-top:8px">Amigos cercanos:</div>${amigos.map(a=>`<div style="font-size:13px">• ${a.nombre}: ${a.telefono}</div>`).join('')}` : ''}
@@ -458,9 +468,15 @@ window.abrirFormMiembro = function(id){
     <div><label>Nombre completo</label><input name="nombre" required value="${m.nombre||''}"></div>
     <div><label>Sexo</label><select name="sexo"><option ${m.sexo==='Femenino'?'selected':''}>Femenino</option><option ${m.sexo==='Masculino'?'selected':''}>Masculino</option></select></div>
     <div><label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento" value="${m.fechaNacimiento||''}"></div>
+    <div><label>Cédula</label><input name="cedula" value="${m.cedula||''}"></div>
     <div><label>Tipo de sangre</label><select name="tipoSangre"><option value="">—</option>${opciones(['O+','O-','A+','A-','B+','B-','AB+','AB-'], m.tipoSangre)}</select></div>
     <div><label>Grupo familiar</label><select name="familiaId">${opcionesFamilias(m.familiaId)}</select></div>
+    <div><label>Teléfono fijo</label><input name="telefonoFijo" value="${m.telefonoFijo||''}"></div>
+    <div><label>Celular</label><input name="celular" value="${m.celular||''}"></div>
     <div><label>Dirección de trabajo/estudio</label><input name="direccionTrabajo" value="${m.direccionTrabajo||''}"></div>
+    <div><label>Color favorito</label><input name="colorFavorito" value="${m.colorFavorito||''}"></div>
+    <div><label>Comida favorita</label><input name="comidaFavorita" value="${m.comidaFavorita||''}"></div>
+    <div><label>Hobbies</label><input name="hobbies" value="${m.hobbies||''}" placeholder="Ej: fútbol, lectura, pintura..."></div>
     </div>
     <label>Alergias</label><input name="alergias" placeholder="Ej: penicilina, maní..." value="${m.alergias||''}">
     <label>Punto de encuentro cercano (en caso de emergencia)</label><input name="puntoEncuentro" value="${m.puntoEncuentro||''}">
@@ -475,7 +491,9 @@ window.abrirFormMiembro = function(id){
     `,
     async (fd)=>{
       const item = {id, nombre:fd.get('nombre'), sexo:fd.get('sexo'), fechaNacimiento:fd.get('fechaNacimiento'),
-        tipoSangre:fd.get('tipoSangre'), familiaId:fd.get('familiaId'), direccionTrabajo:fd.get('direccionTrabajo'),
+        cedula:fd.get('cedula'), tipoSangre:fd.get('tipoSangre'), familiaId:fd.get('familiaId'),
+        telefonoFijo:fd.get('telefonoFijo'), celular:fd.get('celular'), direccionTrabajo:fd.get('direccionTrabajo'),
+        colorFavorito:fd.get('colorFavorito'), comidaFavorita:fd.get('comidaFavorita'), hobbies:fd.get('hobbies'),
         alergias:fd.get('alergias'), puntoEncuentro:fd.get('puntoEncuentro'),
         contactos:[0,1,2,3,4].map(i=>({nombre:fd.get('contNombre'+i)||'', telefono:fd.get('contTel'+i)||''})),
         amigos:[0,1].map(i=>({nombre:fd.get('amigoNombre'+i)||'', telefono:fd.get('amigoTel'+i)||''}))
@@ -561,15 +579,30 @@ function renderFondos(){
   const saldo = calcularSaldoFondos();
   const porRubro = {};
   (DATA.fondos.gastos||[]).forEach(g=>{ porRubro[g.rubro]=(porRubro[g.rubro]||0)+(parseFloat(g.monto)||0); });
+  const anioActual = new Date().getFullYear();
+  const anioInicio = DATA.fondos.fechaAcuerdo? new Date(DATA.fondos.fechaAcuerdo+'T00:00:00').getFullYear() : anioActual;
+  const anios=[]; for(let a=anioInicio; a<=anioActual; a++) anios.push(a);
+
   document.getElementById('content').innerHTML = `
   ${topbar('Fondos de contingencia', 'Aportes, gastos y saldo del fondo familiar',
-    isAdmin()? '<button class="btn secondary" onclick="abrirFormAporte()">+ Aporte</button> <button class="btn secondary" onclick="abrirFormGasto()">+ Gasto</button> <button class="btn secondary" onclick="abrirFormConvenio()">+ Convenio mensual</button> <button class="btn" onclick="editarBanco()">🏦 Datos bancarios</button>':'')}
+    isAdmin()? '<button class="btn secondary" onclick="abrirFormAporte()">+ Aporte manual</button> <button class="btn secondary" onclick="abrirFormGasto()">+ Gasto</button> <button class="btn secondary" onclick="abrirFormConvenio()">+ Convenio mensual</button> <button class="btn" onclick="editarBanco()">🏦 Datos bancarios</button>':'')}
   <div class="grid cols-3">
     <div class="card"><div class="muted">Saldo actual</div><h2>${money(saldo)}</h2></div>
     <div class="card"><div class="muted">Total aportado</div><h2>${money((DATA.fondos.aportes||[]).reduce((s,a)=>s+(parseFloat(a.monto)||0),0))}</h2></div>
     <div class="card"><div class="muted">Total gastado</div><h2>${money((DATA.fondos.gastos||[]).reduce((s,g)=>s+(parseFloat(g.monto)||0),0))}</h2></div>
   </div>
   <div class="card"><b>Depositado en:</b> ${DATA.fondos.banco||'No especificado'}</div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>📅 Aportes — cuota mensual acordada</h3>
+      ${isAdmin()?'<button class="btn secondary no-print" onclick="configurarCuota()">Configurar cuota</button>':''}
+    </div>
+    ${DATA.fondos.cuotaMensual? `<p class="muted">Cuota mensual acordada: <b>${money(DATA.fondos.cuotaMensual)}</b> por grupo familiar · vigente desde ${DATA.fondos.fechaAcuerdo? fmtFecha(DATA.fondos.fechaAcuerdo)+' de '+anioInicio : '—'}</p>
+    <p class="muted">Marca cada mes cumplido por grupo familiar; se suma automáticamente al total de aportes.</p>
+    <div id="tablasCumplimiento"></div>` : `<p class="muted">Aún no se ha configurado una cuota mensual acordada.</p>`}
+  </div>
+
   <div class="grid cols-2">
     <div class="card"><h3>Aportes por grupo familiar</h3>
       <table><tr><th>Grupo</th><th>Monto</th><th>Fecha</th>${isAdmin()?'<th></th>':''}</tr>
@@ -592,18 +625,61 @@ function renderFondos(){
     ${(DATA.fondos.convenios||[]).map((c,i)=>`<tr><td>${nombreFamilia(c.familiaId)}</td><td>${money(c.monto)}</td><td>${c.dia||'—'}</td>${isAdmin()?`<td><button class="btn small danger" onclick="eliminarConvenio(${i})">✕</button></td>`:''}</tr>`).join('')||'<tr><td colspan="4" class="muted">Sin convenios.</td></tr>'}
     </table>
   </div>`;
+
+  if(DATA.fondos.cuotaMensual){
+    document.getElementById('tablasCumplimiento').innerHTML = (DATA.familias.length? DATA.familias : [{id:'sin',nombre:'Sin grupo asignado'}]).map(f=>`
+      <div style="margin-top:14px">
+        <b>${f.nombre}</b>
+        ${anios.map(anio=>`
+          <table style="margin-top:6px"><tr><th style="width:60px">${anio}</th>${MESES_ES.map(m=>`<th>${m}</th>`).join('')}</tr>
+          <tr><td class="muted">Estado</td>${MESES_ES.map((m,i)=>{
+            const key=f.id+'_'+anio+'_'+i;
+            const pagado = !!(DATA.fondos.cumplimientos||{})[key];
+            const esFuturo = anio===anioActual && i>new Date().getMonth() || anio>anioActual;
+            return `<td style="text-align:center">${isAdmin() && !esFuturo? `<button class="btn small ${pagado?'':'secondary'}" style="padding:3px 8px" onclick="toggleCumplimiento('${f.id}',${anio},${i})">${pagado?'✅':'—'}</button>` : (esFuturo? '<span class="muted">·</span>' : (pagado?'✅':'❌'))}</td>`;
+          }).join('')}</tr></table>`).join('')}
+      </div>`).join('');
+  }
 }
+window.configurarCuota = function(){
+  if(!requireAdmin()) return;
+  openModal('Configurar cuota mensual acordada', `
+    <label>Monto mensual por grupo familiar</label><input type="number" step="0.01" name="monto" required value="${DATA.fondos.cuotaMensual||''}">
+    <label>Fecha del acuerdo (define desde qué año se lleva la tabla)</label><input type="date" name="fecha" required value="${DATA.fondos.fechaAcuerdo||''}">`,
+    async (fd)=>{
+      DATA.fondos.cuotaMensual = fd.get('monto');
+      DATA.fondos.fechaAcuerdo = fd.get('fecha');
+      await guardarFondos();
+      render('fondos');
+    });
+};
+window.toggleCumplimiento = async function(familiaId, anio, mesIdx){
+  if(!requireAdmin()) return;
+  DATA.fondos.cumplimientos = DATA.fondos.cumplimientos||{};
+  const key = familiaId+'_'+anio+'_'+mesIdx;
+  const yaPagado = !!DATA.fondos.cumplimientos[key];
+  DATA.fondos.aportes = DATA.fondos.aportes||[];
+  if(yaPagado){
+    delete DATA.fondos.cumplimientos[key];
+    DATA.fondos.aportes = DATA.fondos.aportes.filter(a=> a.cuotaKey!==key);
+  } else {
+    DATA.fondos.cumplimientos[key]=true;
+    DATA.fondos.aportes.push({familiaId, monto:DATA.fondos.cuotaMensual, fecha:anio+'-'+String(mesIdx+1).padStart(2,'0'), cuotaKey:key, origen:'cuota mensual'});
+  }
+  await guardarFondos();
+  render('fondos');
+};
 window.abrirFormAporte = function(){ if(!requireAdmin())return; openModal('Registrar aporte', `
   <label>Grupo familiar</label><select name="familiaId">${opcionesFamilias()}</select>
   <label>Monto</label><input type="number" step="0.01" name="monto" required>
   <label>Fecha</label><input type="date" name="fecha">`,
   async (fd)=>{ DATA.fondos.aportes=DATA.fondos.aportes||[]; DATA.fondos.aportes.push({familiaId:fd.get('familiaId'),monto:fd.get('monto'),fecha:fd.get('fecha')}); await guardarFondos(); render('fondos'); }); };
-window.eliminarAporte = async function(i){ if(!requireAdmin())return; DATA.fondos.aportes.splice(i,1); await guardarFondos(); render('fondos'); };
+window.eliminarAporte = async function(i){ if(!requireAdmin())return; const a=DATA.fondos.aportes[i]; if(a && a.cuotaKey && DATA.fondos.cumplimientos) delete DATA.fondos.cumplimientos[a.cuotaKey]; DATA.fondos.aportes.splice(i,1); await guardarFondos(); render('fondos'); };
 window.abrirFormGasto = function(){ if(!requireAdmin())return; openModal('Registrar gasto', `
-  <label>Rubro</label><select name="rubro">${opciones(['Alimentos','Vestimenta','Salud','Vivienda/reparación','Transporte','Educación','Otro'])}</select>
+  <label>Rubro</label><select name="rubro" id="rubroGastoSelect" onchange="document.getElementById('detalleGastoLabel').textContent = this.value==='Otro' ? 'Especifica de qué se trata este gasto' : 'Detalle'; document.getElementById('detalleGastoInput').required = (this.value==='Otro');">${opciones(['Alimentos','Vestimenta','Salud','Vivienda/reparación','Transporte','Educación','Otro'])}</select>
   <label>Monto</label><input type="number" step="0.01" name="monto" required>
   <label>Ubicación (si aplica)</label><input name="ubicacion">
-  <label>Detalle</label><input name="detalle">
+  <label id="detalleGastoLabel">Detalle</label><input name="detalle" id="detalleGastoInput" placeholder="Ej: si es Otro, especifica de qué se trata">
   <label>Fecha</label><input type="date" name="fecha">`,
   async (fd)=>{ DATA.fondos.gastos=DATA.fondos.gastos||[]; DATA.fondos.gastos.push({rubro:fd.get('rubro'),monto:fd.get('monto'),ubicacion:fd.get('ubicacion'),detalle:fd.get('detalle'),fecha:fd.get('fecha')}); await guardarFondos(); render('fondos'); }); };
 window.eliminarGasto = async function(i){ if(!requireAdmin())return; DATA.fondos.gastos.splice(i,1); await guardarFondos(); render('fondos'); };
@@ -947,7 +1023,55 @@ window.guardarIdeaGenerada = async function(tema, idea){
 };
 
 /* =========================================================================
-   13) GESTIÓN DE ACCESOS (solo admin) — crea usuario+contraseña y su perfil en Firestore automáticamente
+   13) DELEGACIONES — responsables por tema, manual o al azar
+   ========================================================================= */
+function renderDelegaciones(){
+  document.getElementById('content').innerHTML = `
+  ${topbar('Delegaciones', 'Responsable asignado por tema dentro del grupo familiar',
+    isAdmin()? '<button class="btn secondary" onclick="abrirFormDelegacion()">+ Asignar manual</button> <button class="btn gold" onclick="asignarAlAzar()">🎲 Asignar al azar</button>':'')}
+  <div class="card"><table><tr><th>Tema</th><th>Miembro delegado</th><th>Fecha de asignación</th>${isAdmin()?'<th></th>':''}</tr>
+  ${TEMAS_DELEGACION.map(tema=>{
+    const d = DATA.delegaciones.find(x=>x.tema===tema);
+    const m = d? DATA.miembros.find(x=>x.id===d.miembroId) : null;
+    return `<tr><td><b>${tema}</b></td><td>${m? m.nombre : '<span class="muted">Sin asignar</span>'}</td><td>${d? (d.fecha||'—') : '—'}</td>
+      ${isAdmin()?`<td><button class="btn small secondary" onclick="abrirFormDelegacion('${tema}')">${d?'Reasignar':'Asignar'}</button> ${d?`<button class="btn small danger" onclick="eliminarDelegacion('${d.id}')">Quitar</button>`:''}</td>`:''}</tr>`;
+  }).join('')}
+  </table></div>`;
+}
+window.abrirFormDelegacion = function(temaPreseleccionado){
+  if(!requireAdmin()) return;
+  openModal(temaPreseleccionado?'Asignar delegación: '+temaPreseleccionado:'Nueva delegación', `
+    <label>Tema</label><select name="tema" ${temaPreseleccionado?'disabled':''}>${opciones(TEMAS_DELEGACION, temaPreseleccionado)}</select>
+    ${temaPreseleccionado?`<input type="hidden" name="temaFijo" value="${temaPreseleccionado}">`:''}
+    <label>Miembro responsable</label><select name="miembroId">${DATA.miembros.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}</select>
+    <label>Fecha</label><input type="date" name="fecha" value="${new Date().toISOString().slice(0,10)}">`,
+    async (fd)=>{
+      const tema = fd.get('temaFijo') || fd.get('tema');
+      const existente = DATA.delegaciones.find(x=>x.tema===tema);
+      const item = {id: existente?existente.id:undefined, tema, miembroId:fd.get('miembroId'), fecha:fd.get('fecha')};
+      const newId = await guardarDoc('delegaciones', item);
+      if(existente){ Object.assign(existente, item); } else { item.id=newId; DATA.delegaciones.push(item); }
+      render('delegaciones');
+    });
+};
+window.eliminarDelegacion = async function(id){ if(!requireAdmin())return; await borrarDoc('delegaciones', id); DATA.delegaciones=DATA.delegaciones.filter(d=>d.id!==id); render('delegaciones'); };
+window.asignarAlAzar = async function(){
+  if(!requireAdmin()) return;
+  if(!DATA.miembros.length){ alert('Registra primero miembros en Grupo familiar.'); return; }
+  if(!confirm('¿Asignar al azar un responsable para cada tema? Esto reemplazará las delegaciones actuales.')) return;
+  const hoy = new Date().toISOString().slice(0,10);
+  for(const tema of TEMAS_DELEGACION){
+    const miembro = DATA.miembros[Math.floor(Math.random()*DATA.miembros.length)];
+    const existente = DATA.delegaciones.find(x=>x.tema===tema);
+    const item = {id: existente?existente.id:undefined, tema, miembroId:miembro.id, fecha:hoy};
+    const newId = await guardarDoc('delegaciones', item);
+    if(existente){ Object.assign(existente, item); } else { item.id=newId; DATA.delegaciones.push(item); }
+  }
+  render('delegaciones');
+};
+
+/* =========================================================================
+   14) GESTIÓN DE ACCESOS (solo admin) — crea usuario+contraseña y su perfil en Firestore automáticamente
    ========================================================================= */
 let LISTA_ACCESOS = [];
 async function cargarAccesos(){
