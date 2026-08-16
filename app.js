@@ -224,6 +224,7 @@ let DATA = { miembros:[], familias:[], planes:[], equipoRevisiones:[], fondos:{a
              seguridadItems:[], seguridadCumplimiento:[], saludCitasManual:[], saludCumplimiento:[], reuniones:[], compromisos:[], planificaciones:[],
              alertas:[], configAlertas:{telefonoWhatsapp:'', correoFamiliar:''} };
 let CURRENT_VIEW = 'dashboard';
+let filtroGrupoFamiliar = '';
 const isAdmin = ()=> CURRENT_USER && CURRENT_USER.rol==='admin';
 
 // ============================================================
@@ -504,6 +505,14 @@ function renderGrupo(){
   document.getElementById('content').innerHTML = `
   ${topbar('Grupo familiar', `${DATA.familias.length} grupos familiares · ${DATA.miembros.length} miembros`,
     (isAdmin()? '<button class="btn secondary" onclick="abrirFormFamilia()">+ Nuevo grupo</button> <button class="btn" onclick="abrirFormMiembro()">+ Nuevo miembro</button>':''))}
+  <div class="card no-print" style="padding:14px">
+    <label style="margin:0 0 4px">Filtrar por grupo familiar</label>
+    <select onchange="filtroGrupoFamiliar=this.value; render('grupo')">
+      <option value="">Todos los grupos</option>
+      ${DATA.familias.map(f=>`<option value="${f.id}" ${filtroGrupoFamiliar===f.id?'selected':''}>${f.nombre}</option>`).join('')}
+      ${grupos['sin']&&grupos['sin'].length? `<option value="sin" ${filtroGrupoFamiliar==='sin'?'selected':''}>Sin grupo asignado</option>`:''}
+    </select>
+  </div>
   <div id="gruposContainer"></div>`;
 
   const cont = document.getElementById('gruposContainer');
@@ -511,16 +520,15 @@ function renderGrupo(){
     cont.innerHTML = '<div class="card"><p class="muted">Aún no hay grupos familiares ni miembros registrados. '+(isAdmin()?'Usa los botones de arriba para comenzar.':'Pide a tu administrador que los registre.')+'</p></div>';
     return;
   }
-  const familiasIds = DATA.familias.length? DATA.familias.map(f=>f.id) : ['sin'];
-  familiasIds.concat(grupos['sin']&&!DATA.familias.length?[]:[]).forEach(()=>{});
   let html='';
-  DATA.familias.forEach(f=>{
+  const familiasAMostrar = filtroGrupoFamiliar && filtroGrupoFamiliar!=='sin' ? DATA.familias.filter(f=>f.id===filtroGrupoFamiliar) : (filtroGrupoFamiliar==='sin'? [] : DATA.familias);
+  familiasAMostrar.forEach(f=>{
     html += renderFichaGrupo(f, grupos[f.id]||[]);
   });
-  if(grupos['sin'] && grupos['sin'].length){
+  if((!filtroGrupoFamiliar || filtroGrupoFamiliar==='sin') && grupos['sin'] && grupos['sin'].length){
     html += renderFichaGrupo({id:'sin', nombre:'Sin grupo asignado'}, grupos['sin']);
   }
-  cont.innerHTML = html;
+  cont.innerHTML = html || '<div class="card"><p class="muted">No hay miembros en el grupo seleccionado.</p></div>';
 }
 function renderFichaGrupo(familia, miembros){
   return `<div class="card">
