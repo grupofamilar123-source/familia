@@ -221,7 +221,8 @@ function initials(name){ return (name||'?').split(' ').filter(Boolean).slice(0,2
 let CURRENT_USER = null;   // {uid, email, rol, miembroId}
 let DATA = { miembros:[], familias:[], planes:[], equipoRevisiones:[], fondos:{aportes:[],gastos:[],convenios:[],banco:'',cuotaMensual:null,fechaAcuerdo:'',cumplimientos:{}},
              seguros:[], telefonos:[], estructuras:[], diversionPropuestas:[], diversionRespuestas:[], salud:[], ideas:[], delegaciones:[],
-             seguridadItems:[], seguridadCumplimiento:[], saludCitasManual:[], saludCumplimiento:[], reuniones:[], compromisos:[], planificaciones:[] };
+             seguridadItems:[], seguridadCumplimiento:[], saludCitasManual:[], saludCumplimiento:[], reuniones:[], compromisos:[], planificaciones:[],
+             alertas:[], configAlertas:{telefonoWhatsapp:'', correoFamiliar:''} };
 let CURRENT_VIEW = 'dashboard';
 const isAdmin = ()=> CURRENT_USER && CURRENT_USER.rol==='admin';
 
@@ -271,8 +272,8 @@ async function colToArray(name){
 }
 async function cargarTodo(){
   try{
-    const [miembros, familias, planes, equipoRevisiones, seguros, telefonos, estructuras, diversionPropuestas, diversionRespuestas, salud, ideas, delegaciones, seguridadItems, seguridadCumplimiento, saludCitasManual, saludCumplimiento, reuniones, compromisos, planificaciones] =
-      await Promise.all(['miembros','familias','planesSeguridad','revisionesSeguridad','seguros','telefonos','estructuras','diversionPropuestas','diversionRespuestas','salud','ideas','delegaciones','seguridadItems','seguridadCumplimiento','saludCitasManual','saludCumplimiento','reuniones','compromisos','planificaciones'].map(colToArray));
+    const [miembros, familias, planes, equipoRevisiones, seguros, telefonos, estructuras, diversionPropuestas, diversionRespuestas, salud, ideas, delegaciones, seguridadItems, seguridadCumplimiento, saludCitasManual, saludCumplimiento, reuniones, compromisos, planificaciones, alertas] =
+      await Promise.all(['miembros','familias','planesSeguridad','revisionesSeguridad','seguros','telefonos','estructuras','diversionPropuestas','diversionRespuestas','salud','ideas','delegaciones','seguridadItems','seguridadCumplimiento','saludCitasManual','saludCumplimiento','reuniones','compromisos','planificaciones','alertas'].map(colToArray));
     DATA.miembros=miembros; DATA.familias=familias;
     DATA.planes = planes.length? planes : PLANES_SEED.map(p=>({id:uid(),...p}));
     DATA.equipoRevisiones=equipoRevisiones;
@@ -284,6 +285,9 @@ async function cargarTodo(){
     DATA.saludCitasManual = saludCitasManual; DATA.saludCumplimiento = saludCumplimiento;
     DATA.reuniones = reuniones; DATA.compromisos = compromisos;
     DATA.planificaciones = planificaciones;
+    DATA.alertas = alertas.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+    const configDoc = await db.collection('configuracion').doc('alertas').get();
+    DATA.configAlertas = configDoc.exists? configDoc.data() : {telefonoWhatsapp:'', correoFamiliar:''};
     const fondosDoc = await db.collection('fondos').doc('main').get();
     DATA.fondos = fondosDoc.exists? fondosDoc.data() : {aportes:[],gastos:[],convenios:[],banco:'',cuotaMensual:null,fechaAcuerdo:'',cumplimientos:{}};
     if(!DATA.fondos.cumplimientos) DATA.fondos.cumplimientos={};
@@ -319,7 +323,7 @@ function render(view){
     dashboard: renderDashboard, grupo: renderGrupo, seguridad: renderSeguridad, fondos: renderFondos,
     seguros: renderSeguros, telefonos: renderTelefonos, cumpleanos: renderCumpleanos, estructuras: renderEstructuras,
     diversion: renderDiversion, planificacion: renderPlanificacion, salud: renderSalud, ideas: renderIdeas,
-    delegaciones: renderDelegaciones, accesos: renderAccesos, reuniones: renderReuniones
+    delegaciones: renderDelegaciones, accesos: renderAccesos, reuniones: renderReuniones, alertas: renderAlertas
   };
   (renderers[view]||renderDashboard)();
 }
@@ -335,18 +339,41 @@ function topbar(titulo, subtitulo, extraBtnsHtml){
     </div>
   </header>`;
 }
-function prepararContenidoExport(){
-  const clone = document.getElementById('content').cloneNode(true);
+function prepararContenidoExport(source){
+  const src = source || document.getElementById('content');
+  const clone = src.cloneNode(true);
   clone.querySelectorAll('.no-print').forEach(el=>el.remove());
   clone.querySelectorAll('button').forEach(el=>el.remove());
   clone.querySelectorAll('a').forEach(el=>{ el.removeAttribute('onclick'); el.removeAttribute('href'); });
   clone.querySelectorAll('.semaforo').forEach(el=>{ const txt=el.getAttribute('title')||''; const span=document.createElement('span'); span.textContent=txt; el.replaceWith(span); });
   clone.querySelectorAll('select').forEach(el=>{ const opt=el.options[el.selectedIndex]; const span=document.createElement('span'); span.textContent=opt?opt.textContent:''; el.replaceWith(span); });
+  clone.querySelectorAll('input').forEach(el=>{ const span=document.createElement('span'); span.textContent=el.value||''; el.replaceWith(span); });
   clone.querySelectorAll('header.topbar').forEach(el=>el.remove());
   return clone;
 }
-window.descargarWord = function(titulo){
-  const clone = prepararContenidoExport();
+function imprimirSeccion(sourceEl, titulo){
+  const clone = prepararContenidoExport(sourceEl);
+  const w = window.open('', '_blank');
+  if(!w){ alert('Habilita las ventanas emergentes para poder imprimir este informe.'); return; }
+  w.document.write(`<html><head><title>${titulo}</title><meta charset="utf-8"><style>
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#1e2430;padding:28px}
+    h1{font-family:Georgia,serif;color:#1b2a4a} h3,h4{font-family:Georgia,serif;color:#1b2a4a}
+    table{border-collapse:collapse;width:100%;margin-bottom:16px} th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}
+    th{background:#f0f2f6}
+    .pill{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold;background:#e6f6f6;color:#0e8f8f}
+    .card{margin-bottom:16px}
+    .muted{color:#6b7280}
+  </style></head><body>
+  <h1>Plan Familiar Integral — ${titulo}</h1>
+  <p class="muted">Informe ejecutivo generado el ${new Date().toLocaleDateString('es-EC',{day:'2-digit',month:'long',year:'numeric'})}</p>
+  <hr>
+  ${clone.innerHTML}
+  </body></html>`);
+  w.document.close();
+  setTimeout(()=>{ w.focus(); w.print(); }, 400);
+}
+window.descargarWord = function(titulo, sourceEl){
+  const clone = prepararContenidoExport(sourceEl);
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
   <head><meta charset='utf-8'><title>${titulo}</title>
   <style>
@@ -369,8 +396,8 @@ window.descargarWord = function(titulo){
   link.download = titulo.replace(/[^a-z0-9]+/gi,'_')+'.doc';
   document.body.appendChild(link); link.click(); link.remove();
 };
-window.descargarExcel = function(titulo){
-  const clone = prepararContenidoExport();
+window.descargarExcel = function(titulo, sourceEl){
+  const clone = prepararContenidoExport(sourceEl);
   const tablas = clone.querySelectorAll('table');
   if(!tablas.length){ alert('Esta sección no tiene tablas de datos para exportar a Excel.'); return; }
   const wb = XLSX.utils.book_new();
@@ -1095,16 +1122,24 @@ const ESTADO_PLAN_TXT = {pendiente:'Pendiente', en_curso:'En curso', finalizado:
 const ESTADO_PLAN_CLS = {pendiente:'gold', en_curso:'', finalizado:'verde'};
 function renderPlanificacionCard(p){
   const asistentes = p.asistentes||{};
+  const presupuestoAportes = p.presupuestoAportes||{};
   const gastos = p.gastos||[]; const ingresos = p.ingresos||[];
   const totalGastos = gastos.reduce((s,g)=>s+(parseFloat(g.monto)||0),0);
   const totalIngresos = ingresos.reduce((s,i)=>s+(parseFloat(i.monto)||0),0);
   const presupuesto = parseFloat(p.presupuesto)||0;
+  const montoPorGrupo = DATA.familias.length? (presupuesto/DATA.familias.length) : 0;
   const saldo = presupuesto + totalIngresos - totalGastos;
   const estado = p.estado||'pendiente';
-  return `<div class="card">
+  const tituloSafe = String(p.titulo).replace(/'/g,"");
+  return `<div class="card" id="plan-card-${p.id}">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <h3>🗓️ ${p.titulo} <span class="pill" style="margin-left:6px">${p.tipo}</span> <span class="pill ${ESTADO_PLAN_CLS[estado]}">${ESTADO_PLAN_TXT[estado]}</span></h3>
       <div class="no-print">${isAdmin()?`<button class="btn small secondary" onclick="abrirFormPlanificacion('${p.id}')">Editar</button> <button class="btn small danger" onclick="eliminarPlanificacion('${p.id}')">Eliminar</button>`:''}</div>
+    </div>
+    <div class="toolbar no-print" style="margin-top:-4px">
+      <button class="btn small secondary" onclick="imprimirSeccion(document.getElementById('plan-card-${p.id}'), '${tituloSafe}')">🖨️ PDF</button>
+      <button class="btn small secondary" onclick="descargarWord('${tituloSafe}', document.getElementById('plan-card-${p.id}'))">📝 Word</button>
+      <button class="btn small secondary" onclick="descargarExcel('${tituloSafe}', document.getElementById('plan-card-${p.id}'))">📊 Excel</button>
     </div>
     <p class="muted">${p.fecha? fmtFecha(p.fecha)+' de '+new Date(p.fecha+'T00:00:00').getFullYear() : '—'}</p>
     ${p.descripcion? `<p>${p.descripcion}</p>`:''}
@@ -1115,12 +1150,15 @@ function renderPlanificacionCard(p){
       <p><b>Se compromete a culminar:</b> ${(DATA.miembros.find(m=>m.id===p.responsableTerminoId)||{}).nombre||'—'} ${p.fechaCompromisoTermino? '· fecha de compromiso: '+fmtFecha(p.fechaCompromisoTermino)+' de '+new Date(p.fechaCompromisoTermino+'T00:00:00').getFullYear() : ''}</p>
     </div>` : ''}
 
-    <h4 style="font-size:14px">👥 Checklist — ¿quién asistirá a realizar esta planificación?</h4>
-    <table><tr><th>Miembro</th><th style="width:100px">Asistirá</th></tr>
+    <h4 style="font-size:14px">👥 Checklist de asistencia y tareas</h4>
+    <table><tr><th>Miembro</th><th style="width:120px">Confirmación</th><th>¿Qué hará?</th></tr>
     ${DATA.miembros.map(m=>{
-      const va = !!asistentes[m.id];
-      return `<tr><td>${m.nombre}</td><td style="text-align:center"><span class="semaforo ${va?'verde':'gris'}" title="${va?'Asistirá':'Sin confirmar'}" ${isAdmin()?`onclick="toggleAsistentePlanificacion('${p.id}','${m.id}')"`:''}></span></td></tr>`;
-    }).join('') || `<tr><td colspan="2" class="muted">Registra miembros primero.</td></tr>`}
+      const a = asistentes[m.id]||{confirmacion:'sin_confirmar', tarea:''};
+      const txt = {si:'✅ Confirmado', no:'❌ No asiste', sin_confirmar:'Sin confirmar'}[a.confirmacion||'sin_confirmar'];
+      const cls = {si:'verde', no:'danger', sin_confirmar:'gold'}[a.confirmacion||'sin_confirmar'];
+      return `<tr><td>${m.nombre}</td><td style="text-align:center">${isAdmin()?`<button class="btn small secondary" style="padding:3px 6px" onclick="cicloConfirmacionAsistente('${p.id}','${m.id}')"><span class="pill ${cls}">${txt}</span></button>`:`<span class="pill ${cls}">${txt}</span>`}</td>
+        <td>${isAdmin()?`<input value="${a.tarea||''}" placeholder="Ej: llevar el vehículo, coordinar juegos..." onchange="actualizarTareaAsistente('${p.id}','${m.id}', this.value)">`:(a.tarea||'—')}</td></tr>`;
+    }).join('') || `<tr><td colspan="3" class="muted">Registra miembros primero.</td></tr>`}
     </table>
 
     <h4 style="margin-top:12px;font-size:14px">💰 Presupuesto (independiente del fondo de contingencia)</h4>
@@ -1129,6 +1167,18 @@ function renderPlanificacionCard(p){
       <div class="card" style="margin-bottom:0"><div class="muted">Ingresos + gastos</div><h3>${money(totalIngresos)} / ${money(totalGastos)}</h3></div>
       <div class="card" style="margin-bottom:0"><div class="muted">Saldo</div><h3>${money(saldo)}</h3></div>
     </div>
+
+    <h4 style="margin-top:12px;font-size:14px">🧾 División del presupuesto por grupo familiar</h4>
+    ${DATA.familias.length? `<p class="muted">Cuota por grupo familiar (presupuesto ÷ ${DATA.familias.length} grupos): <b>${money(montoPorGrupo)}</b></p>
+    <table><tr><th>Grupo familiar</th><th>Monto a entregar</th><th>Responsable de recaudar</th><th style="width:100px">Entregado</th></tr>
+    ${DATA.familias.map(f=>{
+      const ap = presupuestoAportes[f.id]||{entregado:false, responsableId:''};
+      return `<tr><td>${f.nombre}</td><td>${money(montoPorGrupo)}</td>
+        <td>${isAdmin()?`<select onchange="asignarResponsableGrupoPresupuesto('${p.id}','${f.id}', this.value)"><option value="">— elegir —</option>${DATA.miembros.map(m=>`<option value="${m.id}" ${ap.responsableId===m.id?'selected':''}>${m.nombre}</option>`).join('')}</select>` : ((DATA.miembros.find(m=>m.id===ap.responsableId)||{}).nombre||'—')}</td>
+        <td style="text-align:center"><span class="semaforo ${ap.entregado?'verde':'gris'}" title="${ap.entregado?'Entregado':'No entregado'}" ${isAdmin()?`onclick="toggleEntregadoGrupoPresupuesto('${p.id}','${f.id}')"`:''}></span></td></tr>`;
+    }).join('')}
+    </table>` : '<p class="muted">Registra grupos familiares en "Grupo familiar" para dividir el presupuesto.</p>'}
+
     <div class="grid cols-2" style="margin-top:10px">
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center"><b>Gastos</b>${isAdmin()?`<button class="btn small secondary no-print" onclick="abrirFormGastoPlanificacion('${p.id}')">+ Gasto</button>`:''}</div>
@@ -1174,11 +1224,40 @@ window.abrirFormPlanificacion = function(id){
     });
 };
 window.eliminarPlanificacion = async function(id){ if(!requireAdmin())return; if(!confirm('¿Eliminar esta planificación?'))return; await borrarDoc('planificaciones', id); DATA.planificaciones=DATA.planificaciones.filter(p=>p.id!==id); render('planificacion'); };
-window.toggleAsistentePlanificacion = async function(planId, miembroId){
+window.cicloConfirmacionAsistente = async function(planId, miembroId){
+  if(!requireAdmin()) return;
+  const orden=['sin_confirmar','si','no'];
+  const p = DATA.planificaciones.find(x=>x.id===planId);
+  p.asistentes = p.asistentes||{};
+  const actual = (p.asistentes[miembroId]||{}).confirmacion || 'sin_confirmar';
+  const tareaActual = (p.asistentes[miembroId]||{}).tarea || '';
+  p.asistentes[miembroId] = {confirmacion: orden[(orden.indexOf(actual)+1)%orden.length], tarea: tareaActual};
+  await guardarDoc('planificaciones', p);
+  render('planificacion');
+};
+window.actualizarTareaAsistente = async function(planId, miembroId, tarea){
   if(!requireAdmin()) return;
   const p = DATA.planificaciones.find(x=>x.id===planId);
   p.asistentes = p.asistentes||{};
-  p.asistentes[miembroId] = !p.asistentes[miembroId];
+  const confActual = (p.asistentes[miembroId]||{}).confirmacion || 'sin_confirmar';
+  p.asistentes[miembroId] = {confirmacion: confActual, tarea};
+  await guardarDoc('planificaciones', p);
+};
+window.asignarResponsableGrupoPresupuesto = async function(planId, familiaId, miembroId){
+  if(!requireAdmin()) return;
+  const p = DATA.planificaciones.find(x=>x.id===planId);
+  p.presupuestoAportes = p.presupuestoAportes||{};
+  const entregadoActual = (p.presupuestoAportes[familiaId]||{}).entregado || false;
+  p.presupuestoAportes[familiaId] = {responsableId:miembroId, entregado:entregadoActual};
+  await guardarDoc('planificaciones', p);
+};
+window.toggleEntregadoGrupoPresupuesto = async function(planId, familiaId){
+  if(!requireAdmin()) return;
+  const p = DATA.planificaciones.find(x=>x.id===planId);
+  p.presupuestoAportes = p.presupuestoAportes||{};
+  const respActual = (p.presupuestoAportes[familiaId]||{}).responsableId || '';
+  const entregadoActual = (p.presupuestoAportes[familiaId]||{}).entregado || false;
+  p.presupuestoAportes[familiaId] = {responsableId:respActual, entregado: !entregadoActual};
   await guardarDoc('planificaciones', p);
   render('planificacion');
 };
@@ -1658,7 +1737,88 @@ window.toggleCompromiso = async function(id){
 };
 
 /* =========================================================================
-   15) GESTIÓN DE ACCESOS (solo admin) — crea usuario+contraseña y su perfil en Firestore automáticamente
+   15) ALERTAS — cualquier miembro genera una alerta y la envía por WhatsApp y/o correo
+   ========================================================================= */
+function renderAlertas(){
+  document.getElementById('content').innerHTML = `
+  ${topbar('Alertas', 'Cualquier miembro puede generar una alerta y enviarla al grupo familiar', '<button class="btn" onclick="abrirFormAlerta()">🚨 Nueva alerta</button>')}
+  <div class="card no-print">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>⚙️ Configuración de envío</h3>
+      ${isAdmin()?'<button class="btn small secondary" onclick="editarConfigAlertas()">Editar</button>':''}
+    </div>
+    <p class="muted">Grupo de WhatsApp: ${DATA.configAlertas.telefonoWhatsapp||'no configurado (se abrirá para elegir contacto manualmente)'}</p>
+    <p class="muted">Correo familiar: ${DATA.configAlertas.correoFamiliar||'no configurado'}</p>
+  </div>
+  <div id="alertasContainer"></div>`;
+  document.getElementById('alertasContainer').innerHTML = DATA.alertas.map(a=>{
+    const autor = DATA.miembros.find(m=>m.id===a.autorId);
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3>🚨 ${a.nombre}</h3>
+        ${isAdmin()?`<button class="btn small danger no-print" onclick="eliminarAlerta('${a.id}')">Eliminar</button>`:''}
+      </div>
+      <p class="muted">${a.fecha? fmtFecha(a.fecha)+' de '+new Date(a.fecha+'T00:00:00').getFullYear() : ''} · Generada por: ${autor?autor.nombre:(a.autorNombre||'—')}</p>
+      <p>${a.descripcion}</p>
+      <div class="tag-row" style="margin-bottom:8px">
+        ${a.enviadoWhatsapp? '<span class="pill verde">✅ Enviada por WhatsApp</span>':''}
+        ${a.enviadoCorreo? '<span class="pill verde">✅ Enviada por correo</span>':''}
+      </div>
+      <div class="no-print">
+        <button class="btn small gold" onclick="enviarAlertaWhatsapp('${a.id}')">📲 Enviar por WhatsApp</button>
+        <button class="btn small secondary" onclick="enviarAlertaCorreo('${a.id}')">✉️ Enviar por correo</button>
+      </div>
+    </div>`;
+  }).join('') || '<p class="muted">Sin alertas registradas.</p>';
+}
+window.abrirFormAlerta = function(){
+  openModal('Nueva alerta', `
+    <label>Nombre de la alerta</label><input name="nombre" required placeholder="Ej: Fuga de agua en casa principal">
+    <label>¿De qué se trata?</label><textarea name="descripcion" rows="4" required placeholder="Describe la situación con el mayor detalle posible"></textarea>
+    <label>Generada por</label><select name="autorId">${DATA.miembros.map(m=>`<option value="${m.id}" ${m.id===CURRENT_USER.miembroId?'selected':''}>${m.nombre}</option>`).join('') || `<option value="">${CURRENT_USER.nombre}</option>`}</select>`,
+    async (fd)=>{
+      const item={nombre:fd.get('nombre'), descripcion:fd.get('descripcion'), autorId:fd.get('autorId'), autorNombre:CURRENT_USER.nombre, fecha:new Date().toISOString().slice(0,10), enviadoWhatsapp:false, enviadoCorreo:false};
+      item.id = await guardarDoc('alertas', item);
+      DATA.alertas.unshift(item);
+      render('alertas');
+    });
+};
+window.eliminarAlerta = async function(id){ if(!requireAdmin())return; if(!confirm('¿Eliminar esta alerta?'))return; await borrarDoc('alertas', id); DATA.alertas=DATA.alertas.filter(a=>a.id!==id); render('alertas'); };
+window.enviarAlertaWhatsapp = async function(id){
+  const a = DATA.alertas.find(x=>x.id===id);
+  const autor = DATA.miembros.find(m=>m.id===a.autorId);
+  const texto = `🚨 ALERTA FAMILIAR: ${a.nombre}\n\n${a.descripcion}\n\nGenerada por: ${autor?autor.nombre:(a.autorNombre||'—')}\nFecha: ${a.fecha}`;
+  const tel = (DATA.configAlertas.telefonoWhatsapp||'').replace(/[^0-9]/g,'');
+  const url = tel? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+  window.open(url, '_blank');
+  try{ a.enviadoWhatsapp = true; await guardarDoc('alertas', a); }catch(e){ console.warn('No se pudo guardar el estado de envío', e); }
+  render('alertas');
+};
+window.enviarAlertaCorreo = async function(id){
+  const a = DATA.alertas.find(x=>x.id===id);
+  const autor = DATA.miembros.find(m=>m.id===a.autorId);
+  const asunto = `Alerta familiar: ${a.nombre}`;
+  const cuerpo = `${a.descripcion}\n\nGenerada por: ${autor?autor.nombre:(a.autorNombre||'—')}\nFecha: ${a.fecha}`;
+  const destino = DATA.configAlertas.correoFamiliar||'';
+  const url = `mailto:${destino}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+  window.open(url, '_blank');
+  try{ a.enviadoCorreo = true; await guardarDoc('alertas', a); }catch(e){ console.warn('No se pudo guardar el estado de envío', e); }
+  render('alertas');
+};
+window.editarConfigAlertas = function(){
+  if(!requireAdmin()) return;
+  openModal('Configuración de envío de alertas', `
+    <label>Número de WhatsApp del grupo familiar (con código de país, ej: 593987654321)</label><input name="telefonoWhatsapp" value="${DATA.configAlertas.telefonoWhatsapp||''}">
+    <label>Correo electrónico familiar</label><input type="email" name="correoFamiliar" value="${DATA.configAlertas.correoFamiliar||''}">`,
+    async (fd)=>{
+      DATA.configAlertas = {telefonoWhatsapp:fd.get('telefonoWhatsapp'), correoFamiliar:fd.get('correoFamiliar')};
+      await db.collection('configuracion').doc('alertas').set(DATA.configAlertas);
+      render('alertas');
+    });
+};
+
+/* =========================================================================
+   16) GESTIÓN DE ACCESOS (solo admin) — crea usuario+contraseña y su perfil en Firestore automáticamente
    ========================================================================= */
 let LISTA_ACCESOS = [];
 async function cargarAccesos(){
